@@ -91,48 +91,51 @@ export default function Home() {
     return currentChainId;
   };
 
-  const fetchBalances = useCallback(async (address: string) => {
-    const ethereum = getEthereum();
+  const fetchBalances = useCallback(
+    async (address: string) => {
+      const ethereum = getEthereum();
 
-    if (!ethereum || !address || chainId !== ARC_CHAIN_ID) {
-      setUsdcBalance("0.00");
-      setEurcBalance("0.00");
-      setBalancesLoading(false);
-      return;
-    }
+      if (!ethereum || !address || chainId !== ARC_CHAIN_ID) {
+        setUsdcBalance("0.00");
+        setEurcBalance("0.00");
+        setBalancesLoading(false);
+        return;
+      }
 
-    try {
-      setBalancesLoading(true);
+      try {
+        setBalancesLoading(true);
 
-      const provider = new ethers.BrowserProvider(ethereum);
-      const usdcContract = new ethers.Contract(
-        USDC_ADDRESS,
-        ERC20_ABI,
-        provider
-      );
-      const eurcContract = new ethers.Contract(
-        EURC_ADDRESS,
-        ERC20_ABI,
-        provider
-      );
+        const provider = new ethers.BrowserProvider(ethereum);
+        const usdcContract = new ethers.Contract(
+          USDC_ADDRESS,
+          ERC20_ABI,
+          provider
+        );
+        const eurcContract = new ethers.Contract(
+          EURC_ADDRESS,
+          ERC20_ABI,
+          provider
+        );
 
-      const [usdcRaw, eurcRaw] = await Promise.all([
-        usdcContract.balanceOf(address),
-        eurcContract.balanceOf(address),
-      ]);
+        const [usdcRaw, eurcRaw] = await Promise.all([
+          usdcContract.balanceOf(address),
+          eurcContract.balanceOf(address),
+        ]);
 
-      const usdcFormatted = Number(ethers.formatUnits(usdcRaw, 6)).toFixed(2);
-      const eurcFormatted = Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2);
+        const usdcFormatted = Number(ethers.formatUnits(usdcRaw, 6)).toFixed(2);
+        const eurcFormatted = Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2);
 
-      setUsdcBalance(usdcFormatted);
-      setEurcBalance(eurcFormatted);
-    } catch {
-      setUsdcBalance("0.00");
-      setEurcBalance("0.00");
-    } finally {
-      setBalancesLoading(false);
-    }
-  }, [chainId]);
+        setUsdcBalance(usdcFormatted);
+        setEurcBalance(eurcFormatted);
+      } catch {
+        setUsdcBalance("0.00");
+        setEurcBalance("0.00");
+      } finally {
+        setBalancesLoading(false);
+      }
+    },
+    [chainId]
+  );
 
   const syncConnectedAccount = async () => {
     const ethereum = getEthereum();
@@ -234,6 +237,8 @@ export default function Home() {
       } else {
         showMessage("Wallet Connected");
       }
+
+      void fetchBalances(accounts[0]);
     } catch {
       showMessage("Connection Rejected");
     }
