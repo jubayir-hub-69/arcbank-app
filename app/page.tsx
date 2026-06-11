@@ -9,6 +9,7 @@ const ARC_RPC = "https://rpc.testnet.arc.network";
 const ARC_EXPLORER = "https://testnet.arcscan.app";
 const ARC_FAUCET = "https://faucet.circle.com";
 
+// Contracts based on Arc Network Docs
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 const ERC20_ABI = ["function balanceOf(address owner) view returns (uint256)"];
@@ -83,55 +84,53 @@ export default function Home() {
     const ethereum = getEthereum();
     if (!ethereum) return null;
 
-    const provider = new ethers.BrowserProvider(ethereum);
-    const network = await provider.getNetwork();
-    const currentChainId = Number(network.chainId);
-
-    setChainId(currentChainId);
-    return currentChainId;
+    try {
+      const provider = new ethers.BrowserProvider(ethereum);
+      const network = await provider.getNetwork();
+      const currentChainId = Number(network.chainId);
+      setChainId(currentChainId);
+      return currentChainId;
+    } catch (error) {
+      console.error("Failed to sync network:", error);
+      return null;
+    }
   };
 
   const fetchBalances = useCallback(
-    async (address: string) => {
+    async (address: string, isSilentRefresh = false) => {
       const ethereum = getEthereum();
 
       if (!ethereum || !address || chainId !== ARC_CHAIN_ID) {
         setUsdcBalance("0.00");
         setEurcBalance("0.00");
-        setBalancesLoading(false);
+        if (!isSilentRefresh) setBalancesLoading(false);
         return;
       }
 
       try {
-        setBalancesLoading(true);
+        if (!isSilentRefresh) setBalancesLoading(true);
 
         const provider = new ethers.BrowserProvider(ethereum);
-        const usdcContract = new ethers.Contract(
-          USDC_ADDRESS,
-          ERC20_ABI,
-          provider
-        );
-        const eurcContract = new ethers.Contract(
-          EURC_ADDRESS,
-          ERC20_ABI,
-          provider
-        );
+        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
+        const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, provider);
 
         const [usdcRaw, eurcRaw] = await Promise.all([
           usdcContract.balanceOf(address),
           eurcContract.balanceOf(address),
         ]);
 
+        // Arc uses 6 decimals for both USDC and EURC
         const usdcFormatted = Number(ethers.formatUnits(usdcRaw, 6)).toFixed(2);
         const eurcFormatted = Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2);
 
         setUsdcBalance(usdcFormatted);
         setEurcBalance(eurcFormatted);
-      } catch {
+      } catch (error) {
+        console.error("Balance fetch error:", error);
         setUsdcBalance("0.00");
         setEurcBalance("0.00");
       } finally {
-        setBalancesLoading(false);
+        if (!isSilentRefresh) setBalancesLoading(false);
       }
     },
     [chainId]
@@ -150,7 +149,6 @@ export default function Home() {
       } else {
         setWallet("");
       }
-
       await syncNetwork();
     } catch {
       // silent init
@@ -191,22 +189,24 @@ export default function Home() {
     };
   }, []);
 
+  // Poll balances every 10 seconds to show live updates
   useEffect(() => {
-    if (!wallet) {
+    if (!wallet || !isArcTestnet) {
       setUsdcBalance("0.00");
       setEurcBalance("0.00");
       setBalancesLoading(false);
       return;
     }
 
-    if (!isArcTestnet) {
-      setUsdcBalance("0.00");
-      setEurcBalance("0.00");
-      setBalancesLoading(false);
-      return;
-    }
-
+    // Initial fetch
     void fetchBalances(wallet);
+
+    // Setup polling
+    const intervalId = setInterval(() => {
+      void fetchBalances(wallet, true);
+    }, 10000);
+
+    return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances]);
 
   const connectWallet = async () => {
@@ -237,7 +237,7 @@ export default function Home() {
       } else {
         showMessage("Wallet Connected");
       }
-
+      
       void fetchBalances(accounts[0]);
     } catch {
       showMessage("Connection Rejected");
@@ -724,16 +724,12 @@ export default function Home() {
 
                       <div className="rounded-xl border border-zinc-800 bg-black p-4">
                         <div className="text-sm text-gray-400">Next Step</div>
-                        <div className="mt-1 text-lg font-semibold">
-                          Swap flow
-                        </div>
+                        <div className="mt-1 text-lg font-semibold">Swap flow</div>
                       </div>
 
                       <div className="rounded-xl border border-zinc-800 bg-black p-4">
                         <div className="text-sm text-gray-400">Next Step</div>
-                        <div className="mt-1 text-lg font-semibold">
-                          History page
-                        </div>
+                        <div className="mt-1 text-lg font-semibold">History page</div>
                       </div>
                     </div>
                   </div>
