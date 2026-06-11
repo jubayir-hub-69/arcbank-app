@@ -9,10 +9,8 @@ const ARC_RPC = "https://rpc.testnet.arc.network";
 const ARC_EXPLORER = "https://testnet.arcscan.app";
 const ARC_FAUCET = "https://faucet.circle.com";
 
-const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+// Contracts based on Arc Network Docs
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
-
-// ABI তে transfer ফাংশন যুক্ত করা হয়েছে
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)"
@@ -47,7 +45,7 @@ export default function Home() {
 
   const activityFeed: ActivityItem[] = useMemo(
     () => [
-      { id: 1, label: "USDC faucet received", amount: "+20.00 USDC", meta: "Arc Testnet • 2 minutes ago", status: "Completed" },
+      { id: 1, label: "USDC faucet received", amount: "+20.00 USDC", meta: "Arc Testnet • recent", status: "Completed" },
       { id: 2, label: "Wallet connected", amount: "Connected", meta: "MetaMask / Rabby • today", status: "Completed" },
       { id: 3, label: "EURC balance synced", amount: "—", meta: "Awaiting balance module", status: "Pending" },
       { id: 4, label: "Swap module queued", amount: "USDC ↔ EURC", meta: "Next build step", status: "Pending" },
@@ -80,6 +78,7 @@ export default function Home() {
     }
   };
 
+  // Fixed Balance Reading Logic
   const fetchBalances = useCallback(
     async (address: string, isSilentRefresh = false) => {
       const ethereum = getEthereum();
@@ -95,17 +94,19 @@ export default function Home() {
         if (!isSilentRefresh) setBalancesLoading(true);
 
         const provider = new ethers.BrowserProvider(ethereum);
-        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
         const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, provider);
 
-        const [usdcRaw, eurcRaw] = await Promise.all([
-          usdcContract.balanceOf(address),
-          eurcContract.balanceOf(address),
+        // Fetch Native Balance (USDC gas) and ERC20 Balance (EURC)
+        const [nativeUsdcRaw, eurcRaw] = await Promise.all([
+          provider.getBalance(address),
+          eurcContract.balanceOf(address)
         ]);
 
-        setUsdcBalance(Number(ethers.formatUnits(usdcRaw, 6)).toFixed(2));
+        // Native USDC uses 18 decimals, EURC uses 6 decimals
+        setUsdcBalance(Number(ethers.formatUnits(nativeUsdcRaw, 18)).toFixed(2));
         setEurcBalance(Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2));
-      } catch {
+      } catch (error) {
+        console.error("Fetch Balance Error:", error);
         setUsdcBalance("0.00");
         setEurcBalance("0.00");
       } finally {
@@ -245,7 +246,7 @@ export default function Home() {
               chainName: "Arc Testnet",
               rpcUrls: [ARC_RPC],
               blockExplorerUrls: [ARC_EXPLORER],
-              nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+              nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
             }],
           });
         }
@@ -254,7 +255,7 @@ export default function Home() {
     } catch {}
   };
 
-  // SEND FUNCTION LOGIC
+  // FIXED SEND LOGIC FOR BOTH NATIVE (USDC) AND ERC20 (EURC)
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) {
       showMessage("Please fill all fields");
@@ -267,16 +268,25 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      const tokenAddress = sendAsset === "USDC" ? USDC_ADDRESS : EURC_ADDRESS;
-      const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-
-      const parsedAmount = ethers.parseUnits(sendAmount, 6);
-      
       showMessage("Please confirm transaction in your wallet...");
-      const tx = await contract.transfer(sendAddress, parsedAmount);
-      
-      showMessage(`Sending ${sendAmount} ${sendAsset}...`);
-      await tx.wait();
+
+      if (sendAsset === "USDC") {
+        // Send Native USDC (18 decimals)
+        const parsedAmount = ethers.parseUnits(sendAmount, 18);
+        const tx = await signer.sendTransaction({
+          to: sendAddress,
+          value: parsedAmount
+        });
+        showMessage(`Sending ${sendAmount} USDC...`);
+        await tx.wait();
+      } else {
+        // Send ERC20 EURC (6 decimals)
+        const parsedAmount = ethers.parseUnits(sendAmount, 6);
+        const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+        const tx = await contract.transfer(sendAddress, parsedAmount);
+        showMessage(`Sending ${sendAmount} EURC...`);
+        await tx.wait();
+      }
       
       showMessage(`Successfully sent ${sendAmount} ${sendAsset}!`);
       setShowSendModal(false);
@@ -453,11 +463,11 @@ export default function Home() {
                       <div className="space-y-4">
                         <div className="rounded-xl border border-zinc-800 bg-black p-4">
                           <div className="text-sm text-gray-400">USDC Balance</div>
-                          <div className="mt-2 text-3xl font-bold">{balancesLoading ? "Loading..." : usdcBalance}</div>
+                          <div className="mt-2 text-3xl font-bold text-blue-400">{balancesLoading ? "Loading..." : usdcBalance}</div>
                         </div>
                         <div className="rounded-xl border border-zinc-800 bg-black p-4">
                           <div className="text-sm text-gray-400">EURC Balance</div>
-                          <div className="mt-2 text-3xl font-bold">{balancesLoading ? "Loading..." : eurcBalance}</div>
+                          <div className="mt-2 text-3xl font-bold text-green-400">{balancesLoading ? "Loading..." : eurcBalance}</div>
                         </div>
                       </div>
                     </div>
