@@ -123,7 +123,7 @@ export default function Home() {
     if (!wallet) return;
     const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
     const storedDate = localStorage.getItem(`arcbank_last_gm_${wallet}`);
-    const today = new Date().toLocaleDateString(); // Changes at midnight local time
+    const today = new Date().toLocaleDateString();
 
     if (storedDate) {
       const lastDate = new Date(storedDate);
@@ -139,7 +139,7 @@ export default function Home() {
         setStreak(Number(storedStreak) || 0);
       } else {
         setHasCheckedInToday(false);
-        setStreak(0); // Streak broken
+        setStreak(0);
       }
     } else {
       setHasCheckedInToday(false);
@@ -305,7 +305,6 @@ export default function Home() {
 
       showMessage("Confirm Daily GM Check-in (Zero-value tx)");
       
-      // Sending 0 value to self generates a real verifiable hash, costing only gas
       const tx = await signer.sendTransaction({
         to: wallet,
         value: 0
@@ -314,7 +313,6 @@ export default function Home() {
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
 
-      // Update States & LocalStorage
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -325,7 +323,7 @@ export default function Home() {
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
       addHistoryRecord("Daily GM Check-in", "0 USDC", `Streak: Day ${newStreak} 🔥`, "Completed", receipt.hash);
       
-      void fetchBalances(wallet); // To reflect gas fee deduction
+      void fetchBalances(wallet); 
     } catch (error) {
       showMessage("GM Check-in rejected or failed");
     } finally {
