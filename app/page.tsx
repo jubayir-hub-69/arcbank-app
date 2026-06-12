@@ -253,7 +253,7 @@ export default function Home() {
     } catch {}
   };
 
-  // REAL BLOCKCHAIN SEND TRANSACTION
+  // REAL BLOCKCHAIN SEND TRANSACTION (Fixed TypeScript Null Receipt Error)
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
     try {
@@ -263,7 +263,7 @@ export default function Home() {
       const signer = await provider.getSigner();
 
       showMessage("Confirm transaction in your wallet...");
-      let tx;
+      let tx: any;
 
       if (sendAsset === "USDC") {
         const parsedAmount = ethers.parseUnits(sendAmount, 18);
@@ -276,9 +276,10 @@ export default function Home() {
       
       showMessage(`Sending ${sendAsset}... Waiting for block confirmation`);
       const receipt = await tx.wait();
+      const txHash = receipt?.hash || tx?.hash || "";
       
       showMessage(`Successfully sent ${sendAmount} ${sendAsset}!`);
-      addHistoryRecord(`Transfer ${sendAsset}`, `-${sendAmount} ${sendAsset}`, `Sent to ${sendAddress.slice(0,6)}...`, "Completed", receipt.hash);
+      addHistoryRecord(`Transfer ${sendAsset}`, `-${sendAmount} ${sendAsset}`, `Sent to ${sendAddress.slice(0,6)}...`, "Completed", txHash);
       
       setShowSendModal(false);
       setSendAddress("");
@@ -293,7 +294,7 @@ export default function Home() {
     }
   };
 
-  // REAL DAILY GM CHECK-IN TRANSACTION
+  // REAL DAILY GM CHECK-IN TRANSACTION (Fixed TypeScript Null Receipt Error)
   const executeDailyGM = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
@@ -306,7 +307,6 @@ export default function Home() {
 
       showMessage("Confirm Daily GM Check-in (Zero-value tx)");
       
-      // Sending 0 value to self generates a real verifiable hash, costing only gas
       const tx = await signer.sendTransaction({
         to: wallet,
         value: 0
@@ -314,8 +314,8 @@ export default function Home() {
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
+      const txHash = receipt?.hash || tx?.hash || "";
 
-      // Update States & LocalStorage
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -324,7 +324,7 @@ export default function Home() {
       localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      addHistoryRecord("Daily GM Check-in", "0 USDC", `Streak: Day ${newStreak} 🔥`, "Completed", receipt.hash);
+      addHistoryRecord("Daily GM Check-in", "0 USDC", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
       
       void fetchBalances(wallet); 
     } catch (error) {
