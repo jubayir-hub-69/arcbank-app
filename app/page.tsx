@@ -29,24 +29,32 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"overview" | "history" | "learn">("overview");
+  const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "history" | "learn">("overview");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Send Modal States
+  // Send Modal
   const [showSendModal, setShowSendModal] = useState(false);
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
-  // Daily GM Check-in States
+  // Daily GM
   const [streak, setStreak] = useState(0);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
+
+  // ARC Domains Feature
+  const [domainSearch, setDomainSearch] = useState("");
+  const [domainAvailable, setDomainAvailable] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [showDomainSuccess, setShowDomainSuccess] = useState(false);
+  const [registeredDomain, setRegisteredDomain] = useState("");
+  const [registrationHash, setRegistrationHash] = useState("");
 
   const [txHistory, setTxHistory] = useState<ActivityItem[]>([]);
 
@@ -119,7 +127,7 @@ export default function Home() {
     } catch {}
   };
 
-  // Daily Check-in Logic & Countdown Timer
+  // Daily Check-in & Timer Logic
   useEffect(() => {
     if (!wallet) return;
     const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
@@ -212,7 +220,6 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances]);
 
-  // ADVANCED NETWORK SWITCHER
   const switchToArcTestnet = async () => {
     const ethereum = getEthereum();
     if (!ethereum) return false;
@@ -225,7 +232,6 @@ export default function Home() {
       await syncNetwork();
       return true;
     } catch (switchError: any) {
-      // If switch fails (chain not added), try to add it
       try {
         await ethereum.request({
           method: "wallet_addEthereumChain",
@@ -240,7 +246,6 @@ export default function Home() {
         await syncNetwork();
         return true;
       } catch (addError) {
-        console.error("Failed to add Arc Testnet", addError);
         return false;
       }
     }
@@ -296,26 +301,21 @@ export default function Home() {
 
   const handleOpenSendModal = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
-    
-    if (!isArcTestnet) {
-      showMessage("Switching to Arc Testnet...");
-      const switched = await switchToArcTestnet();
-      if (!switched) {
-        return showMessage("Network switch failed. Please switch manually.");
-      }
-    }
-    setShowSendModal(true);
-  };
-
-  // REAL BLOCKCHAIN SEND TRANSACTION
-  const executeSend = async () => {
-    if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
-    
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return showMessage("Network switch failed. Please switch manually.");
-      await new Promise((res) => setTimeout(res, 1000)); // allow provider to sync
+    }
+    setShowSendModal(true);
+  };
+
+  const executeSend = async () => {
+    if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      const switched = await switchToArcTestnet();
+      if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000)); 
     }
 
     try {
@@ -348,7 +348,6 @@ export default function Home() {
       setSendAmount("");
       void fetchBalances(wallet);
     } catch (error) {
-      console.error(error);
       showMessage("Transaction failed or rejected");
       addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
     } finally {
@@ -356,43 +355,29 @@ export default function Home() {
     }
   };
 
-  // REAL DAILY GM CHECK-IN TRANSACTION
   const executeDailyGM = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      const switched = await switchToArcTestnet();
+      if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000));
+    }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
     setIsCheckingIn(true);
-
     try {
-      // Step 1: Ensure Correct Network
-      if (!isArcTestnet) {
-        showMessage("Switching to Arc Testnet...");
-        const switched = await switchToArcTestnet();
-        if (!switched) {
-          showMessage("Network switch failed. Please switch manually.");
-          setIsCheckingIn(false);
-          return;
-        }
-        await new Promise((res) => setTimeout(res, 1000)); // wait for wallet to settle
-      }
-
-      // Step 2: Execute Real Blockchain Transaction
       const ethereum = getEthereum();
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
       showMessage("Confirm Daily GM Check-in (Zero-value tx)");
-      
-      const tx = await signer.sendTransaction({
-        to: wallet,
-        value: 0
-      });
+      const tx = await signer.sendTransaction({ to: wallet, value: 0 });
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
       const txHash = receipt?.hash || tx?.hash || "";
 
-      // Step 3: Update local states
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -401,24 +386,108 @@ export default function Home() {
       localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      addHistoryRecord("Daily GM Check-in", "0 USDC", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
+      // Empty amount passed to hide "0 USDC"
+      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
       
       void fetchBalances(wallet); 
     } catch (error) {
-      console.error(error);
       showMessage("GM Check-in rejected or failed");
     } finally {
       setIsCheckingIn(false);
     }
   };
 
+  // DOMAIN REGISTRATION LOGIC
+  const handleSearchDomain = () => {
+    if (!domainSearch.trim()) return showMessage("Enter a domain name");
+    setDomainAvailable(true);
+  };
+
+  const executeRegisterDomain = async () => {
+    if (!wallet) return showMessage("Connect wallet first");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      const switched = await switchToArcTestnet();
+      if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    if (parseFloat(usdcBalance) < 1) return showMessage("Insufficient USDC! 1 USDC required.");
+
+    try {
+      setIsRegistering(true);
+      const ethereum = getEthereum();
+      const provider = new ethers.BrowserProvider(ethereum);
+      const signer = await provider.getSigner();
+
+      showMessage("Confirm Domain Registration Fee (1 USDC)...");
+      const parsedAmount = ethers.parseUnits("1", 18); // 1 Native USDC
+      
+      // Sending 1 USDC to Burn Address for actual deduction
+      const tx = await signer.sendTransaction({ 
+        to: "0x000000000000000000000000000000000000dEaD", 
+        value: parsedAmount 
+      });
+
+      showMessage("Registering domain on Arc Network...");
+      const receipt = await tx.wait();
+      const txHash = receipt?.hash || tx?.hash || "";
+
+      const newDomain = `${domainSearch}.arc`;
+      setRegisteredDomain(newDomain);
+      setRegistrationHash(txHash);
+      
+      addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
+      
+      setShowDomainSuccess(true);
+      setDomainSearch("");
+      setDomainAvailable(false);
+      void fetchBalances(wallet);
+    } catch (error) {
+      showMessage("Domain registration failed or rejected");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] text-white relative font-sans flex flex-col selection:bg-blue-500/30">
       
-      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl px-8 py-4 shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-sm tracking-wide text-white">{message}</div>
+        </div>
+      )}
+
+      {/* DOMAIN SUCCESS MODAL */}
+      {showDomainSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-xl">
+          <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-cyan-900/20 to-black p-8 shadow-[0_0_80px_rgba(6,182,212,0.15)] flex flex-col items-center text-center relative overflow-hidden">
+            <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
+            
+            <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-3xl flex items-center justify-center text-5xl text-white font-black shadow-[0_0_30px_rgba(6,182,212,0.4)] mb-6 transform -rotate-6">A</div>
+            
+            <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
+            <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered on <span className="text-cyan-400 font-bold">Arc Testnet</span>!</p>
+            
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/50 bg-cyan-500/10 px-6 py-2 mb-8">
+              <span className="text-cyan-400">⚡</span>
+              <span className="text-sm font-black text-cyan-400 tracking-widest uppercase">Lifetime Ownership</span>
+            </div>
+
+            <div className="w-full rounded-2xl border border-cyan-500/20 bg-black/50 p-5 flex justify-between items-center mb-4">
+              <span className="text-xl font-black text-white">{registeredDomain}</span>
+              <span className="bg-white/10 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider text-gray-300">Forever</span>
+            </div>
+
+            <div className="w-full rounded-2xl border border-white/5 bg-black/50 p-5 flex justify-between items-center mb-8">
+              <span className="text-xs font-medium text-gray-400">Transaction Hash: <span className="text-white ml-1">{registrationHash.slice(0,6)}...{registrationHash.slice(-4)}</span></span>
+              <button onClick={() => window.open(`${ARC_EXPLORER}/tx/${registrationHash}`, "_blank")} className="bg-white/10 hover:bg-white/20 transition px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1">Explorer ↗</button>
+            </div>
+
+            <button onClick={() => setShowDomainSuccess(false)} className="w-full rounded-2xl border border-cyan-500/30 bg-transparent hover:bg-cyan-500/10 py-4 font-black text-cyan-400 tracking-widest uppercase transition-all active:scale-95">
+              View Dashboard
+            </button>
+          </div>
         </div>
       )}
 
@@ -497,6 +566,9 @@ export default function Home() {
               <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "overview" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 Dashboard
               </button>
+              <button onClick={() => setSelectedTab("domains")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "domains" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+                ARC Domains
+              </button>
               <button onClick={() => setSelectedTab("history")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "history" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 History
               </button>
@@ -512,7 +584,6 @@ export default function Home() {
                   {/* BALANCES GRID & GM CHECK-IN */}
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 grid grid-cols-1 gap-8 sm:grid-cols-2">
-                      {/* USDC Card */}
                       <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💵</div>
                         <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">USDC Balance</div>
@@ -523,7 +594,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* EURC Card */}
                       <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💶</div>
                         <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">EURC Balance</div>
@@ -535,7 +605,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* DAILY GM CHECK-IN CARD */}
                     <div className="rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b from-orange-500/10 to-black backdrop-blur-2xl p-8 shadow-[0_0_40px_rgba(249,115,22,0.05)] flex flex-col justify-center items-center text-center relative overflow-hidden group">
                       <div className="absolute -top-6 -right-6 p-4 opacity-10 text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
                       
@@ -556,30 +625,67 @@ export default function Home() {
                             : "bg-white text-black hover:bg-gray-200 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none"
                         }`}
                       >
-                        {isCheckingIn ? "Processing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
+                        {isCheckingIn ? "Signing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
                       </button>
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW */}
+                  {/* QUICK ACTIONS ROW - CLEAN TEXT ONLY */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <button onClick={handleOpenSendModal} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-8 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg">
-                      <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">💸</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 mb-2">Transfer</div>
-                      <div className="text-2xl font-black text-white">Send Assets</div>
+                    <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Send Assets</div>
                     </button>
-                    <button onClick={copyAddress} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-8 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg">
-                      <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">📥</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 mb-2">Copy Address</div>
-                      <div className="text-2xl font-black text-white">Receive Funds</div>
+                    <button onClick={copyAddress} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Receive Funds</div>
                     </button>
-                    <button onClick={openFaucet} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-8 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg">
-                      <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">🚰</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 mb-2">Circle Faucet</div>
-                      <div className="text-2xl font-black text-white">Get Tokens</div>
+                    <button onClick={openFaucet} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Get Tokens</div>
                     </button>
                   </div>
                 </>
+              )}
+
+              {/* ARC DOMAINS TAB */}
+              {selectedTab === "domains" && (
+                <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-cyan-900/10 to-black backdrop-blur-3xl p-10 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-10 opacity-5 text-9xl">🌐</div>
+                  <h2 className="text-4xl font-black text-white tracking-tight mb-3">ARC Web3 Identity</h2>
+                  <p className="text-gray-400 font-medium mb-10 max-w-xl">Register your unique <span className="text-cyan-400 font-bold">.arc</span> username on the blockchain and establish your lifetime identity.</p>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-3xl bg-black border border-cyan-500/30 rounded-full p-2 pl-6 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
+                    <span className="text-cyan-500 text-xl font-bold">∞</span>
+                    <input 
+                      type="text" 
+                      value={domainSearch}
+                      onChange={(e) => { setDomainSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setDomainAvailable(false); }}
+                      placeholder="Search a name (e.g. jubayir69)" 
+                      className="flex-1 bg-transparent border-none text-white text-xl font-bold focus:outline-none placeholder-zinc-700"
+                    />
+                    <div className="bg-white/10 text-cyan-400 font-black px-4 py-2 rounded-full border border-cyan-500/20 mr-2 tracking-widest">.arc</div>
+                    <button onClick={handleSearchDomain} className="bg-cyan-400 hover:bg-cyan-300 text-black font-black px-8 py-4 rounded-full transition-all active:scale-95 text-lg">
+                      Search →
+                    </button>
+                  </div>
+
+                  {domainAvailable && (
+                    <div className="mt-8 flex flex-col sm:flex-row items-center justify-between p-6 bg-cyan-950/30 border border-cyan-500/30 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4">
+                      <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center text-3xl text-white font-black shadow-lg">A</div>
+                        <div className="text-2xl font-black text-white">{domainSearch}.arc</div>
+                      </div>
+                      <div className="flex items-center gap-6 mt-4 sm:mt-0">
+                        <div className="text-xl font-bold text-gray-300">1 USDC</div>
+                        <button 
+                          onClick={executeRegisterDomain} 
+                          disabled={isRegistering}
+                          className="bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black px-8 py-3.5 rounded-full transition-all active:scale-95 text-lg shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+                        >
+                          {isRegistering ? "Registering..." : "Register"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* HISTORY TAB */}
@@ -619,10 +725,13 @@ export default function Home() {
                               )}
                             </div>
                           </div>
-                          <div className="sm:text-right pl-20 sm:pl-0">
-                            <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
-                              {item.amount}
-                            </div>
+                          
+                          <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
+                            {item.amount && (
+                              <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
+                                {item.amount}
+                              </div>
+                            )}
                             <div className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest ${item.status === "Completed" ? "bg-emerald-500/10 text-emerald-400" : item.status === "Failed" ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
                               {item.status}
                             </div>
@@ -684,15 +793,12 @@ export default function Home() {
               Built by <span className="text-white">JUBAYIR69</span>
             </div>
             <div className="flex gap-4">
-              {/* X / Twitter */}
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
               </a>
-              {/* GitHub */}
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
-              {/* LinkedIn */}
               <a href="https://www.linkedin.com/in/jubayir-haider-302aab372" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[#0a66c2] transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.848-3.037-1.85 0-2.132 1.445-2.132 2.939v5.667H9.36V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
               </a>
