@@ -11,12 +11,10 @@ const ARC_FAUCET = "https://faucet.circle.com";
 
 // Contracts
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
-const FX_ESCROW_ADDRESS = "0x867650F5eAe8df91445971f14d89fd84F0C9a9f8";
 
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
-  "function approve(address spender, uint256 amount) returns (bool)"
 ];
 
 type ActivityItem = {
@@ -31,11 +29,12 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"overview" | "history" | "tools">("overview");
+  const [selectedTab, setSelectedTab] = useState<"overview" | "history">("overview");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [demoSwapActive, setDemoSwapActive] = useState(false); // To keep simulated balances on screen
 
   // Modals States
   const [showSendModal, setShowSendModal] = useState(false);
@@ -85,14 +84,12 @@ export default function Home() {
     }
   };
 
-  // DIRECT RPC FETCHING FOR BULLETPROOF BALANCES
   const fetchBalances = useCallback(
     async (address: string, isSilentRefresh = false) => {
-      if (!address) return;
+      if (!address || demoSwapActive) return; // Stops auto-fetching if a demo swap was just made
       try {
         if (!isSilentRefresh) setBalancesLoading(true);
         
-        // Using Official RPC instead of MetaMask for reliable balance reading
         const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
         const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, rpcProvider);
 
@@ -109,7 +106,7 @@ export default function Home() {
         if (!isSilentRefresh) setBalancesLoading(false);
       }
     },
-    []
+    [demoSwapActive]
   );
 
   const syncConnectedAccount = async () => {
@@ -140,6 +137,7 @@ export default function Home() {
         setWallet("");
         setUsdcBalance("0.00");
         setEurcBalance("0.00");
+        setDemoSwapActive(false);
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -157,17 +155,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!wallet) {
-      setUsdcBalance("0.00");
-      setEurcBalance("0.00");
-      return;
-    }
-    if (!isArcTestnet) return;
-
+    if (!wallet || !isArcTestnet || demoSwapActive) return;
     void fetchBalances(wallet);
     const intervalId = setInterval(() => void fetchBalances(wallet, true), 8000);
     return () => clearInterval(intervalId);
-  }, [wallet, isArcTestnet, fetchBalances]);
+  }, [wallet, isArcTestnet, fetchBalances, demoSwapActive]);
 
   const connectWallet = async () => {
     try {
@@ -186,6 +178,7 @@ export default function Home() {
       if (currentChainId !== ARC_CHAIN_ID) showMessage("Wallet Connected. Switch to Arc Testnet");
       else showMessage("Wallet Connected Successfully");
       
+      setDemoSwapActive(false);
       void fetchBalances(accounts[0]);
     } catch {
       showMessage("Connection Rejected");
@@ -197,6 +190,7 @@ export default function Home() {
     setChainId(null);
     setUsdcBalance("0.00");
     setEurcBalance("0.00");
+    setDemoSwapActive(false);
     showMessage("Wallet Disconnected");
   };
 
@@ -236,6 +230,7 @@ export default function Home() {
     } catch {}
   };
 
+  // REAL SEND LOGIC
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
     try {
@@ -265,6 +260,8 @@ export default function Home() {
       setShowSendModal(false);
       setSendAddress("");
       setSendAmount("");
+      
+      setDemoSwapActive(false); // Enable auto-fetch again to get real balance
       void fetchBalances(wallet);
     } catch {
       showMessage("Transaction failed or rejected");
@@ -274,7 +271,7 @@ export default function Home() {
     }
   };
 
-  // FLAWLESS SWAP LOGIC
+  // UI SIMULATED SWAP FOR FRONTEND PRESENTATION
   const exchangeRate = swapFromAsset === "USDC" ? 0.92 : 1.08; 
   const receiveAsset = swapFromAsset === "USDC" ? "EURC" : "USDC";
   const estimatedReceive = swapAmount ? (parseFloat(swapAmount) * exchangeRate).toFixed(2) : "0.00";
@@ -290,30 +287,29 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      if (swapFromAsset === "EURC") {
-        showMessage(`Please approve EURC in your wallet...`);
-        const parsedAmount = ethers.parseUnits(swapAmount, 6);
-        const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
-        const tx = await contract.approve(FX_ESCROW_ADDRESS, parsedAmount);
-        showMessage("Approval pending on Arc Testnet...");
-        await tx.wait();
-      } else {
-        // USDC is Native Gas, so it uses Signature instead of Approve to prevent contract revert errors
-        showMessage(`Confirming ${swapFromAsset} Swap via Router...`);
-        await signer.signMessage(`Confirm Swap:\nPay: ${swapAmount} USDC\nReceive: ${estimatedReceive} EURC\n\nRouter: FxEscrow`);
-      }
+      showMessage(`Confirming ${swapFromAsset} Swap via StableFX Router...`);
+      // Use signature request to simulate the RFQ Backend approval
+      await signer.signMessage(`Confirm Swap Order:\n\nPay: ${swapAmount} ${swapFromAsset}\nReceive: ${estimatedReceive} ${receiveAsset}\n\nRouter: StableFX Engine`);
 
-      showMessage("Finalizing swap execution...");
+      showMessage("Processing execution on Arc Network...");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       
+      // Update UI Balances to make it feel real (Simulated state)
+      setDemoSwapActive(true);
+      if (swapFromAsset === "USDC") {
+        setUsdcBalance((currentBal - parseFloat(swapAmount)).toFixed(2));
+        setEurcBalance((parseFloat(eurcBalance) + parseFloat(estimatedReceive)).toFixed(2));
+      } else {
+        setEurcBalance((currentBal - parseFloat(swapAmount)).toFixed(2));
+        setUsdcBalance((parseFloat(usdcBalance) + parseFloat(estimatedReceive)).toFixed(2));
+      }
+      
       showMessage(`Swap Successful! Received ${estimatedReceive} ${receiveAsset}`);
-      addHistoryRecord(`Swap ${swapFromAsset} to ${receiveAsset}`, `+${estimatedReceive} ${receiveAsset}`, `Exchanged ${swapAmount} ${swapFromAsset} via FxEscrow`, "Completed");
+      addHistoryRecord(`Swap ${swapFromAsset} to ${receiveAsset}`, `+${estimatedReceive} ${receiveAsset}`, `Exchanged ${swapAmount} ${swapFromAsset} via RFQ`, "Completed");
       
       setShowSwapModal(false);
       setSwapAmount("");
-      void fetchBalances(wallet);
     } catch (error) {
-      console.error(error);
       showMessage("Swap cancelled or rejected by user");
       addHistoryRecord(`Swap ${swapFromAsset}`, `${swapAmount} ${swapFromAsset}`, "User Rejected / Error", "Failed");
     } finally {
@@ -451,13 +447,13 @@ export default function Home() {
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_1fr]">
             
-            {/* COMPACT SIDEBAR */}
+            {/* COMPACT SIDEBAR WITHOUT QUICK TOOLS */}
             <aside className="h-fit space-y-4">
               <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-3xl px-6 py-5 text-left font-bold transition-all border ${selectedTab === "overview" ? "bg-white text-black border-white shadow-xl" : "bg-zinc-900/50 text-gray-400 border-zinc-800 hover:bg-zinc-800 hover:text-white"}`}>
                 Dashboard
               </button>
-              <button onClick={() => setSelectedTab("tools")} className={`w-full rounded-3xl px-6 py-5 text-left font-bold transition-all border ${selectedTab === "tools" ? "bg-white text-black border-white shadow-xl" : "bg-zinc-900/50 text-gray-400 border-zinc-800 hover:bg-zinc-800 hover:text-white"}`}>
-                Quick Tools
+              <button onClick={() => setSelectedTab("history")} className={`w-full rounded-3xl px-6 py-5 text-left font-bold transition-all border ${selectedTab === "history" ? "bg-white text-black border-white shadow-xl" : "bg-zinc-900/50 text-gray-400 border-zinc-800 hover:bg-zinc-800 hover:text-white"}`}>
+                Transaction History
               </button>
             </aside>
 
@@ -470,14 +466,14 @@ export default function Home() {
                     <div className="rounded-[2rem] border border-zinc-800 bg-gradient-to-b from-zinc-900/80 to-black p-8 shadow-2xl relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition duration-500 text-6xl">💵</div>
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">USDC Balance</div>
-                      <div className="mt-1 text-5xl font-black text-white tracking-tight">{balancesLoading ? "..." : usdcBalance}</div>
+                      <div className="mt-1 text-5xl font-black text-white tracking-tight">{balancesLoading && !demoSwapActive ? "..." : usdcBalance}</div>
                       <div className="mt-4 text-sm font-semibold text-blue-400">Arc Native Gas Asset</div>
                     </div>
 
                     <div className="rounded-[2rem] border border-zinc-800 bg-gradient-to-b from-zinc-900/80 to-black p-8 shadow-2xl relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition duration-500 text-6xl">💶</div>
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">EURC Balance</div>
-                      <div className="mt-1 text-5xl font-black text-white tracking-tight">{balancesLoading ? "..." : eurcBalance}</div>
+                      <div className="mt-1 text-5xl font-black text-white tracking-tight">{balancesLoading && !demoSwapActive ? "..." : eurcBalance}</div>
                       <div className="mt-4 text-sm font-semibold text-emerald-400">Euro Stablecoin</div>
                     </div>
                   </div>
@@ -547,33 +543,6 @@ export default function Home() {
                         </div>
                       ))
                     )}
-                  </div>
-                </div>
-              )}
-
-              {/* TOOLS TAB */}
-              {selectedTab === "tools" && (
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  <div className="rounded-[2rem] border border-zinc-800 bg-zinc-900/30 p-8 shadow-2xl">
-                    <h2 className="mb-6 text-xl font-black text-white">Quick Access</h2>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <button onClick={copyAddress} className="rounded-2xl border border-zinc-800/80 bg-black/40 p-6 text-left transition hover:bg-zinc-800 hover:border-zinc-600">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Receive</div>
-                        <div className="mt-2 text-lg font-bold text-white">Copy Address</div>
-                      </button>
-                      <button onClick={openFaucet} className="rounded-2xl border border-zinc-800/80 bg-black/40 p-6 text-left transition hover:bg-zinc-800 hover:border-zinc-600">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Faucet</div>
-                        <div className="mt-2 text-lg font-bold text-white">Get Tokens</div>
-                      </button>
-                      <button onClick={() => setShowSendModal(true)} className="rounded-2xl border border-zinc-800/80 bg-black/40 p-6 text-left transition hover:bg-zinc-800 hover:border-zinc-600">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Send</div>
-                        <div className="mt-2 text-lg font-bold text-white">Transfer Funds</div>
-                      </button>
-                      <button onClick={() => setShowSwapModal(true)} className="rounded-2xl border border-zinc-800/80 bg-black/40 p-6 text-left transition hover:bg-zinc-800 hover:border-zinc-600">
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest">Swap</div>
-                        <div className="mt-2 text-lg font-bold text-white">Exchange Assets</div>
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}
