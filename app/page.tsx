@@ -29,18 +29,23 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"overview" | "history">("overview");
+  const [selectedTab, setSelectedTab] = useState<"overview" | "history" | "learn">("overview");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Modals States
+  // Send Modal States
   const [showSendModal, setShowSendModal] = useState(false);
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
+
+  // Daily GM Check-in States
+  const [streak, setStreak] = useState(0);
+  const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
 
   const [txHistory, setTxHistory] = useState<ActivityItem[]>([]);
 
@@ -113,6 +118,35 @@ export default function Home() {
     } catch {}
   };
 
+  // Daily Check-in Logic Setup
+  useEffect(() => {
+    if (!wallet) return;
+    const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
+    const storedDate = localStorage.getItem(`arcbank_last_gm_${wallet}`);
+    const today = new Date().toLocaleDateString(); // Changes at midnight local time
+
+    if (storedDate) {
+      const lastDate = new Date(storedDate);
+      const currentDate = new Date(today);
+      const diffTime = Math.abs(currentDate.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (storedDate === today) {
+        setHasCheckedInToday(true);
+        setStreak(Number(storedStreak) || 1);
+      } else if (diffDays === 1) {
+        setHasCheckedInToday(false);
+        setStreak(Number(storedStreak) || 0);
+      } else {
+        setHasCheckedInToday(false);
+        setStreak(0); // Streak broken
+      }
+    } else {
+      setHasCheckedInToday(false);
+      setStreak(0);
+    }
+  }, [wallet]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const ethereum = getEthereum();
@@ -126,6 +160,8 @@ export default function Home() {
         setWallet("");
         setUsdcBalance("0.00");
         setEurcBalance("0.00");
+        setHasCheckedInToday(false);
+        setStreak(0);
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -188,6 +224,7 @@ export default function Home() {
 
   const openFaucet = () => window.open(ARC_FAUCET, "_blank", "noopener,noreferrer");
   const openExplorer = () => window.open(ARC_EXPLORER, "_blank", "noopener,noreferrer");
+  const openArcWebsite = () => window.open("https://www.arc.io/", "_blank", "noopener,noreferrer");
 
   const switchToArcTestnet = async () => {
     try {
@@ -248,11 +285,51 @@ export default function Home() {
       setSendAmount("");
       void fetchBalances(wallet);
     } catch (error) {
-      console.error(error);
       showMessage("Transaction failed or rejected");
       addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // REAL DAILY GM CHECK-IN TRANSACTION
+  const executeDailyGM = async () => {
+    if (!wallet) return showMessage("Please connect wallet first");
+    if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
+
+    try {
+      setIsCheckingIn(true);
+      const ethereum = getEthereum();
+      const provider = new ethers.BrowserProvider(ethereum);
+      const signer = await provider.getSigner();
+
+      showMessage("Confirm Daily GM Check-in (Zero-value tx)");
+      
+      // Sending 0 value to self generates a real verifiable hash, costing only gas
+      const tx = await signer.sendTransaction({
+        to: wallet,
+        value: 0
+      });
+
+      showMessage("Broadcasting GM Transaction to Arc Network...");
+      const receipt = await tx.wait();
+
+      // Update States & LocalStorage
+      const newStreak = streak + 1;
+      const today = new Date().toLocaleDateString();
+      setStreak(newStreak);
+      setHasCheckedInToday(true);
+      localStorage.setItem(`arcbank_streak_${wallet}`, newStreak.toString());
+      localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
+
+      showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
+      addHistoryRecord("Daily GM Check-in", "0 USDC", `Streak: Day ${newStreak} 🔥`, "Completed", receipt.hash);
+      
+      void fetchBalances(wallet); // To reflect gas fee deduction
+    } catch (error) {
+      showMessage("GM Check-in rejected or failed");
+    } finally {
+      setIsCheckingIn(false);
     }
   };
 
@@ -341,30 +418,59 @@ export default function Home() {
               <button onClick={() => setSelectedTab("history")} className={`w-full rounded-3xl px-6 py-5 text-left font-bold transition-all border backdrop-blur-md ${selectedTab === "history" ? "bg-white/10 text-white border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"}`}>
                 Transaction History
               </button>
+              <button onClick={() => setSelectedTab("learn")} className={`w-full rounded-3xl px-6 py-5 text-left font-bold transition-all border backdrop-blur-md ${selectedTab === "learn" ? "bg-white/10 text-white border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "bg-transparent text-gray-400 border-transparent hover:bg-white/5 hover:text-white"}`}>
+                Learn Arc & Circle
+              </button>
             </aside>
 
             {/* DASHBOARD TABS */}
             <div className="space-y-6">
               {selectedTab === "overview" && (
                 <>
-                  {/* CLEAN BALANCES GRID */}
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/10 transition-colors duration-500">
-                      <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition duration-500 text-7xl">💵</div>
-                      <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">USDC Balance</div>
-                      <div className="mt-1 text-5xl font-black text-white tracking-tight drop-shadow-md">{balancesLoading ? "..." : usdcBalance}</div>
-                      <div className="mt-4 text-sm font-semibold text-blue-400">Arc Native Gas Asset</div>
+                  {/* CLEAN BALANCES GRID & GM CHECK-IN */}
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2 grid grid-cols-1 gap-6 sm:grid-cols-2">
+                      <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/10 transition-colors duration-500">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition duration-500 text-7xl">💵</div>
+                        <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">USDC Balance</div>
+                        <div className="mt-1 text-5xl font-black text-white tracking-tight drop-shadow-md">{balancesLoading ? "..." : usdcBalance}</div>
+                        <div className="mt-4 text-sm font-semibold text-blue-400">Arc Native Gas Asset</div>
+                      </div>
+
+                      <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/10 transition-colors duration-500">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition duration-500 text-7xl">💶</div>
+                        <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">EURC Balance</div>
+                        <div className="mt-1 text-5xl font-black text-white tracking-tight drop-shadow-md">{balancesLoading ? "..." : eurcBalance}</div>
+                        <div className="mt-4 text-sm font-semibold text-emerald-400">Euro Stablecoin</div>
+                      </div>
                     </div>
 
-                    <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/10 transition-colors duration-500">
-                      <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition duration-500 text-7xl">💶</div>
-                      <div className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-2">EURC Balance</div>
-                      <div className="mt-1 text-5xl font-black text-white tracking-tight drop-shadow-md">{balancesLoading ? "..." : eurcBalance}</div>
-                      <div className="mt-4 text-sm font-semibold text-emerald-400">Euro Stablecoin</div>
+                    {/* DAILY GM CHECK-IN CARD */}
+                    <div className="rounded-[2rem] border border-orange-500/20 bg-gradient-to-b from-orange-500/10 to-transparent backdrop-blur-2xl p-8 shadow-2xl flex flex-col justify-center items-center text-center relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl">☀️</div>
+                      <h3 className="text-xl font-black text-white mb-2">Daily GM Check-in</h3>
+                      <p className="text-sm font-semibold text-gray-400 mb-6">Execute a real transaction everyday to build your streak!</p>
+                      
+                      <div className="text-4xl mb-4">{hasCheckedInToday ? "🔥" : "⏳"}</div>
+                      <div className="text-xl font-bold text-orange-400 mb-6 uppercase tracking-wider">
+                        {streak > 0 ? `Streak: Day ${streak}` : "No Active Streak"}
+                      </div>
+                      
+                      <button 
+                        onClick={executeDailyGM}
+                        disabled={isCheckingIn || hasCheckedInToday || !wallet}
+                        className={`w-full rounded-2xl py-4 font-black text-lg transition shadow-lg ${
+                          hasCheckedInToday 
+                            ? "bg-zinc-800 text-zinc-500 border border-white/5" 
+                            : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-black shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+                        }`}
+                      >
+                        {isCheckingIn ? "Processing..." : hasCheckedInToday ? "Checked In ✅" : "Say GM (Check-in)"}
+                      </button>
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW - 4 BUTTONS NOW */}
+                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <button onClick={() => setShowSendModal(true)} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-6 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-1 shadow-lg">
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">Send</div>
@@ -431,6 +537,39 @@ export default function Home() {
                         </div>
                       ))
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* LEARN SECTION TAB */}
+              {selectedTab === "learn" && (
+                <div className="space-y-6">
+                  <div className="rounded-[2rem] border border-blue-500/20 bg-gradient-to-b from-blue-900/10 to-transparent backdrop-blur-2xl p-10 shadow-2xl">
+                    <h2 className="text-4xl font-black text-white mb-4 tracking-tight">What is Arc Network?</h2>
+                    <p className="text-lg text-gray-300 leading-relaxed max-w-3xl mb-8">
+                      Arc is an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
+                    </p>
+                    <button onClick={openArcWebsite} className="rounded-full bg-blue-600 hover:bg-blue-500 px-8 py-4 font-bold text-white transition shadow-[0_0_20px_rgba(59,130,246,0.4)] flex items-center gap-2">
+                      Visit Arc Official Website <span className="text-xl">↗</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl hover:border-white/10 transition">
+                      <div className="text-5xl mb-6">🌐</div>
+                      <h3 className="text-2xl font-black text-white mb-3">Circle Integration</h3>
+                      <p className="text-gray-400 font-medium leading-relaxed">
+                        Arc natively supports Circle's major stablecoins like <strong className="text-blue-400">USDC</strong> (US Dollar) and <strong className="text-emerald-400">EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-2xl p-8 shadow-2xl hover:border-white/10 transition">
+                      <div className="text-5xl mb-6">⚡</div>
+                      <h3 className="text-2xl font-black text-white mb-3">Native Gas Asset</h3>
+                      <p className="text-gray-400 font-medium leading-relaxed">
+                        Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className="text-blue-400">USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
