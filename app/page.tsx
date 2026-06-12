@@ -119,7 +119,7 @@ export default function Home() {
     } catch {}
   };
 
-  // Daily Check-in Logic & Countdown Timer Setup
+  // Daily Check-in Logic Setup
   useEffect(() => {
     if (!wallet) return;
     const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
@@ -213,47 +213,6 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances]);
 
-  const connectWallet = async () => {
-    try {
-      const ethereum = getEthereum();
-      if (!ethereum) return showMessage("Install Rabby or MetaMask");
-      
-      const provider = new ethers.BrowserProvider(ethereum);
-      const accounts = await provider.send("eth_requestAccounts", []);
-      if (!accounts?.length) return;
-
-      const signer = await provider.getSigner();
-      await signer.signMessage("Sign in to ArcBank");
-
-      setWallet(accounts[0]);
-      const currentChainId = await syncNetwork();
-      if (currentChainId !== ARC_CHAIN_ID) showMessage("Wallet Connected. Switch to Arc Testnet");
-      else showMessage("Wallet Connected Successfully");
-      
-      void fetchBalances(accounts[0]);
-    } catch {
-      showMessage("Connection Rejected");
-    }
-  };
-
-  const disconnectWallet = () => {
-    setWallet("");
-    setChainId(null);
-    setUsdcBalance("0.00");
-    setEurcBalance("0.00");
-    showMessage("Wallet Disconnected");
-  };
-
-  const copyAddress = async () => {
-    if (!wallet) return showMessage("Connect wallet first");
-    await navigator.clipboard.writeText(wallet);
-    showMessage("Address Copied");
-  };
-
-  const openFaucet = () => window.open(ARC_FAUCET, "_blank", "noopener,noreferrer");
-  const openExplorer = () => window.open(ARC_EXPLORER, "_blank", "noopener,noreferrer");
-  const openArcWebsite = () => window.open("https://www.arc.io/", "_blank", "noopener,noreferrer");
-
   const switchToArcTestnet = async () => {
     try {
       const ethereum = getEthereum();
@@ -281,9 +240,71 @@ export default function Home() {
     } catch {}
   };
 
+  const connectWallet = async () => {
+    try {
+      const ethereum = getEthereum();
+      if (!ethereum) return showMessage("Install Rabby or MetaMask");
+      
+      const provider = new ethers.BrowserProvider(ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      if (!accounts?.length) return;
+
+      const signer = await provider.getSigner();
+      await signer.signMessage("Sign in to ArcBank");
+
+      setWallet(accounts[0]);
+      const currentChainId = await syncNetwork();
+      if (currentChainId !== ARC_CHAIN_ID) {
+        showMessage("Please add/switch to Arc Testnet");
+        await switchToArcTestnet();
+      } else {
+        showMessage("Wallet Connected Successfully");
+      }
+      
+      void fetchBalances(accounts[0]);
+    } catch {
+      showMessage("Connection Rejected");
+    }
+  };
+
+  const disconnectWallet = () => {
+    setWallet("");
+    setChainId(null);
+    setUsdcBalance("0.00");
+    setEurcBalance("0.00");
+    showMessage("Wallet Disconnected");
+  };
+
+  const copyAddress = async () => {
+    if (!wallet) return showMessage("Connect wallet first");
+    await navigator.clipboard.writeText(wallet);
+    showMessage("Address Copied");
+  };
+
+  const openFaucet = () => window.open(ARC_FAUCET, "_blank", "noopener,noreferrer");
+  const openExplorer = () => window.open(ARC_EXPLORER, "_blank", "noopener,noreferrer");
+  const openArcWebsite = () => window.open("https://www.arc.io/", "_blank", "noopener,noreferrer");
+
+  // SAFE MODAL OPENER
+  const handleOpenSendModal = async () => {
+    if (!wallet) return showMessage("Please connect wallet first");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      await switchToArcTestnet();
+      return;
+    }
+    setShowSendModal(true);
+  };
+
   // REAL BLOCKCHAIN SEND TRANSACTION
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      await switchToArcTestnet();
+      return;
+    }
+
     try {
       setIsSending(true);
       const ethereum = getEthereum();
@@ -314,6 +335,7 @@ export default function Home() {
       setSendAmount("");
       void fetchBalances(wallet);
     } catch (error) {
+      console.error(error);
       showMessage("Transaction failed or rejected");
       addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
     } finally {
@@ -324,6 +346,11 @@ export default function Home() {
   // REAL DAILY GM CHECK-IN TRANSACTION
   const executeDailyGM = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
+    if (!isArcTestnet) {
+      showMessage("Switching to Arc Testnet...");
+      await switchToArcTestnet();
+      return;
+    }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
     try {
@@ -355,6 +382,7 @@ export default function Home() {
       
       void fetchBalances(wallet); 
     } catch (error) {
+      console.error(error);
       showMessage("GM Check-in rejected or failed");
     } finally {
       setIsCheckingIn(false);
@@ -484,7 +512,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* DAILY GM CHECK-IN CARD - REDESIGNED */}
+                    {/* DAILY GM CHECK-IN CARD */}
                     <div className="rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b from-orange-500/10 to-black backdrop-blur-2xl p-8 shadow-[0_0_40px_rgba(249,115,22,0.05)] flex flex-col justify-center items-center text-center relative overflow-hidden group">
                       <div className="absolute -top-6 -right-6 p-4 opacity-10 text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
                       
@@ -510,9 +538,9 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW - ONLY 3 BUTTONS NOW FOR PERFECT BALANCE */}
+                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <button onClick={() => setShowSendModal(true)} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-8 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg">
+                    <button onClick={handleOpenSendModal} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-8 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg">
                       <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">💸</div>
                       <div className="text-xs font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 mb-2">Transfer</div>
                       <div className="text-2xl font-black text-white">Send Assets</div>
