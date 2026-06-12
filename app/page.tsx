@@ -285,6 +285,7 @@ export default function Home() {
       setSendAmount("");
       void fetchBalances(wallet);
     } catch (error) {
+      console.error(error);
       showMessage("Transaction failed or rejected");
       addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
     } finally {
@@ -305,6 +306,7 @@ export default function Home() {
 
       showMessage("Confirm Daily GM Check-in (Zero-value tx)");
       
+      // Sending 0 value to self generates a real verifiable hash, costing only gas
       const tx = await signer.sendTransaction({
         to: wallet,
         value: 0
@@ -313,6 +315,7 @@ export default function Home() {
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
 
+      // Update States & LocalStorage
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -325,6 +328,7 @@ export default function Home() {
       
       void fetchBalances(wallet); 
     } catch (error) {
+      console.error(error);
       showMessage("GM Check-in rejected or failed");
     } finally {
       setIsCheckingIn(false);
@@ -557,7 +561,7 @@ export default function Home() {
                       <div className="text-5xl mb-6">🌐</div>
                       <h3 className="text-2xl font-black text-white mb-3">Circle Integration</h3>
                       <p className="text-gray-400 font-medium leading-relaxed">
-                        Arc natively supports Circle's major stablecoins like <strong className="text-blue-400">USDC</strong> (US Dollar) and <strong className="text-emerald-400">EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
+                        Arc natively supports Circle&apos;s major stablecoins like <strong className="text-blue-400">USDC</strong> (US Dollar) and <strong className="text-emerald-400">EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
                       </p>
                     </div>
 
