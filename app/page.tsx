@@ -13,8 +13,7 @@ const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "function approve(address spender, uint256 amount) returns (bool)"
+  "function transfer(address to, uint256 amount) returns (bool)"
 ];
 
 type ActivityItem = {
@@ -42,11 +41,6 @@ export default function Home() {
   const [sendAmount, setSendAmount] = useState("");
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
-
-  const [showSwapModal, setShowSwapModal] = useState(false);
-  const [swapFromAsset, setSwapFromAsset] = useState<"USDC" | "EURC">("USDC");
-  const [swapAmount, setSwapAmount] = useState("");
-  const [isSwapping, setIsSwapping] = useState(false);
 
   const [txHistory, setTxHistory] = useState<ActivityItem[]>([]);
 
@@ -254,59 +248,11 @@ export default function Home() {
       setSendAmount("");
       void fetchBalances(wallet);
     } catch (error) {
+      console.error(error);
       showMessage("Transaction failed or rejected");
       addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
     } finally {
       setIsSending(false);
-    }
-  };
-
-  // 100% SUCCESSFUL VERIFIABLE SWAP SIMULATION
-  const exchangeRate = swapFromAsset === "USDC" ? 0.92 : 1.08; 
-  const receiveAsset = swapFromAsset === "USDC" ? "EURC" : "USDC";
-  const estimatedReceive = swapAmount ? (parseFloat(swapAmount) * exchangeRate).toFixed(2) : "0.00";
-
-  const executeSwap = async () => {
-    if (!wallet || !swapAmount || parseFloat(swapAmount) <= 0) return showMessage("Enter a valid amount");
-    const currentBal = swapFromAsset === "USDC" ? parseFloat(usdcBalance) : parseFloat(eurcBalance);
-    if (parseFloat(swapAmount) > currentBal) return showMessage(`Insufficient ${swapFromAsset} balance`);
-
-    try {
-      setIsSwapping(true);
-      const ethereum = getEthereum();
-      const provider = new ethers.BrowserProvider(ethereum);
-      const signer = await provider.getSigner();
-
-      showMessage(`Initiating REAL on-chain verifiable transaction...`);
-      
-      // To guarantee a 100% Success Hash without a real Liquidity Pool,
-      // we perform a 0-value self-transfer. It costs real gas and never fails!
-      const tx = await signer.sendTransaction({
-        to: wallet, 
-        value: 0
-      });
-
-      showMessage("Transaction broadcasting... Please wait.");
-      const receipt = await tx.wait();
-      const realTxHash = receipt.hash;
-      
-      showMessage(`Transaction Confirmed on Arc Blockchain!`);
-      
-      addHistoryRecord(
-        `Swap Order: ${swapFromAsset} ↔ ${receiveAsset}`, 
-        `${swapAmount} ${swapFromAsset}`, 
-        `Order verified on-chain`, 
-        "Completed", 
-        realTxHash
-      );
-      
-      setShowSwapModal(false);
-      setSwapAmount("");
-    } catch (error) {
-      showMessage("Swap transaction rejected or failed");
-      addHistoryRecord(`Swap ${swapFromAsset}`, `${swapAmount} ${swapFromAsset}`, "Transaction Failed", "Failed");
-    } finally {
-      setIsSwapping(false);
     }
   };
 
@@ -354,60 +300,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* SWAP MODAL */}
-      {showSwapModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-zinc-900/80 p-8 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Swap Tokens</h3>
-              <button onClick={() => setShowSwapModal(false)} className="text-gray-400 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2">✕</button>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="bg-black/50 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition">
-                <label className="text-sm font-semibold text-gray-400 mb-3 flex justify-between uppercase tracking-wider">
-                  <span>You Pay</span>
-                  <span className="text-blue-400 cursor-pointer hover:text-blue-300" onClick={() => setSwapAmount(swapFromAsset === "USDC" ? usdcBalance : eurcBalance)}>Max: {swapFromAsset === "USDC" ? usdcBalance : eurcBalance}</span>
-                </label>
-                <div className="flex justify-between items-center gap-4">
-                  <input type="number" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} placeholder="0.0" className="w-full bg-transparent text-4xl text-white focus:outline-none font-bold placeholder-zinc-700" />
-                  <button onClick={() => setSwapFromAsset(swapFromAsset === "USDC" ? "EURC" : "USDC")} className="bg-white/10 hover:bg-white/20 transition px-4 py-2 rounded-xl text-lg font-bold flex items-center gap-2 border border-white/5">
-                    {swapFromAsset}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-center -my-6 relative z-10">
-                <button onClick={() => setSwapFromAsset(swapFromAsset === "USDC" ? "EURC" : "USDC")} className="p-3 rounded-full border-4 border-zinc-900 bg-zinc-800 text-white hover:bg-zinc-700 transition shadow-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-                </button>
-              </div>
-
-              <div className="bg-black/50 border border-white/10 rounded-2xl p-5">
-                <label className="text-sm font-semibold text-gray-400 mb-3 block uppercase tracking-wider">You Receive (Estimated)</label>
-                <div className="flex justify-between items-center gap-4">
-                  <div className={`w-full text-4xl font-bold ${swapAmount ? "text-white" : "text-zinc-700"}`}>
-                    {estimatedReceive || "0.0"}
-                  </div>
-                  <div className="bg-white/5 px-4 py-2 rounded-xl text-lg font-bold text-gray-400 flex items-center gap-2 border border-white/5">
-                    {receiveAsset}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between text-xs font-semibold text-gray-500 px-2 py-2">
-                <span>Exchange Rate</span>
-                <span>1 {swapFromAsset} = {exchangeRate} {receiveAsset}</span>
-              </div>
-
-              <button onClick={executeSwap} disabled={isSwapping || !swapAmount || parseFloat(swapAmount) <= 0} className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 py-4 text-lg font-bold transition disabled:bg-zinc-800 disabled:text-zinc-600 mt-2 shadow-lg shadow-emerald-900/20">
-                {isSwapping ? "Awaiting Block Hash..." : "Execute Real Swap"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* TOP NAVIGATION */}
       <nav className="flex items-center justify-between px-6 py-5 md:px-8 bg-transparent sticky top-0 z-40">
         <div className="flex items-center gap-3">
@@ -419,7 +311,7 @@ export default function Home() {
         <div className="flex items-center gap-3">
           {wallet ? (
             <>
-              <div className="rounded-full bg-white/5 border border-white/10 px-5 py-2 font-semibold text-white tracking-wider backdrop-blur-md">{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
+              <div className="hidden sm:block rounded-full bg-white/5 border border-white/10 px-5 py-2 font-semibold text-white tracking-wider backdrop-blur-md">{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
               <button type="button" onClick={disconnectWallet} className="rounded-full bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-2 transition hover:bg-red-500 hover:text-white font-bold backdrop-blur-md">Disconnect</button>
             </>
           ) : (
@@ -472,7 +364,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW */}
+                  {/* QUICK ACTIONS ROW - 4 BUTTONS NOW */}
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <button onClick={() => setShowSendModal(true)} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-6 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-1 shadow-lg">
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">Send</div>
@@ -482,9 +374,9 @@ export default function Home() {
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">Receive</div>
                       <div className="text-xl font-black text-white">Address</div>
                     </button>
-                    <button onClick={() => setShowSwapModal(true)} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-6 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-1 shadow-lg">
-                      <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">Swap</div>
-                      <div className="text-xl font-black text-white">Exchange</div>
+                    <button onClick={() => setSelectedTab("history")} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-6 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-1 shadow-lg">
+                      <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">History</div>
+                      <div className="text-xl font-black text-white">Activity</div>
                     </button>
                     <button onClick={openFaucet} className="group rounded-[2rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-6 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-1 shadow-lg">
                       <div className="text-sm font-bold text-gray-500 uppercase tracking-wider group-hover:text-gray-300 mb-2">Faucet</div>
