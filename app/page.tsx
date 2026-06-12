@@ -119,7 +119,7 @@ export default function Home() {
     } catch {}
   };
 
-  // Daily Check-in Logic Setup
+  // Daily Check-in Logic & Countdown Timer
   useEffect(() => {
     if (!wallet) return;
     const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
@@ -148,7 +148,6 @@ export default function Home() {
     }
   }, [wallet]);
 
-  // Timer Effect
   useEffect(() => {
     if (!hasCheckedInToday) {
       setTimeLeft("");
@@ -213,31 +212,38 @@ export default function Home() {
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances]);
 
+  // ADVANCED NETWORK SWITCHER
   const switchToArcTestnet = async () => {
+    const ethereum = getEthereum();
+    if (!ethereum) return false;
+    
     try {
-      const ethereum = getEthereum();
-      if (!ethereum) return;
+      await ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: ARC_CHAIN_ID_HEX }],
+      });
+      await syncNetwork();
+      return true;
+    } catch (switchError: any) {
+      // If switch fails (chain not added), try to add it
       try {
         await ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: ARC_CHAIN_ID_HEX }],
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: ARC_CHAIN_ID_HEX,
+            chainName: "Arc Testnet",
+            rpcUrls: [ARC_RPC],
+            blockExplorerUrls: [ARC_EXPLORER],
+            nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+          }],
         });
-      } catch (switchError: any) {
-        if (switchError?.code === 4902) {
-          await ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: ARC_CHAIN_ID_HEX,
-              chainName: "Arc Testnet",
-              rpcUrls: [ARC_RPC],
-              blockExplorerUrls: [ARC_EXPLORER],
-              nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-            }],
-          });
-        }
+        await syncNetwork();
+        return true;
+      } catch (addError) {
+        console.error("Failed to add Arc Testnet", addError);
+        return false;
       }
-      await syncNetwork();
-    } catch {}
+    }
   };
 
   const connectWallet = async () => {
@@ -254,9 +260,12 @@ export default function Home() {
 
       setWallet(accounts[0]);
       const currentChainId = await syncNetwork();
+      
       if (currentChainId !== ARC_CHAIN_ID) {
-        showMessage("Please add/switch to Arc Testnet");
-        await switchToArcTestnet();
+        showMessage("Switching to Arc Testnet...");
+        const switched = await switchToArcTestnet();
+        if (switched) showMessage("Wallet Connected Successfully");
+        else showMessage("Please switch to Arc Testnet manually in your wallet.");
       } else {
         showMessage("Wallet Connected Successfully");
       }
@@ -285,13 +294,15 @@ export default function Home() {
   const openExplorer = () => window.open(ARC_EXPLORER, "_blank", "noopener,noreferrer");
   const openArcWebsite = () => window.open("https://www.arc.io/", "_blank", "noopener,noreferrer");
 
-  // SAFE MODAL OPENER
   const handleOpenSendModal = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
+    
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
-      await switchToArcTestnet();
-      return;
+      const switched = await switchToArcTestnet();
+      if (!switched) {
+        return showMessage("Network switch failed. Please switch manually.");
+      }
     }
     setShowSendModal(true);
   };
@@ -299,10 +310,12 @@ export default function Home() {
   // REAL BLOCKCHAIN SEND TRANSACTION
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
+    
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
-      await switchToArcTestnet();
-      return;
+      const switched = await switchToArcTestnet();
+      if (!switched) return showMessage("Network switch failed. Please switch manually.");
+      await new Promise((res) => setTimeout(res, 1000)); // allow provider to sync
     }
 
     try {
@@ -346,15 +359,24 @@ export default function Home() {
   // REAL DAILY GM CHECK-IN TRANSACTION
   const executeDailyGM = async () => {
     if (!wallet) return showMessage("Please connect wallet first");
-    if (!isArcTestnet) {
-      showMessage("Switching to Arc Testnet...");
-      await switchToArcTestnet();
-      return;
-    }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
+    setIsCheckingIn(true);
+
     try {
-      setIsCheckingIn(true);
+      // Step 1: Ensure Correct Network
+      if (!isArcTestnet) {
+        showMessage("Switching to Arc Testnet...");
+        const switched = await switchToArcTestnet();
+        if (!switched) {
+          showMessage("Network switch failed. Please switch manually.");
+          setIsCheckingIn(false);
+          return;
+        }
+        await new Promise((res) => setTimeout(res, 1000)); // wait for wallet to settle
+      }
+
+      // Step 2: Execute Real Blockchain Transaction
       const ethereum = getEthereum();
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
@@ -370,6 +392,7 @@ export default function Home() {
       const receipt = await tx.wait();
       const txHash = receipt?.hash || tx?.hash || "";
 
+      // Step 3: Update local states
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -533,7 +556,7 @@ export default function Home() {
                             : "bg-white text-black hover:bg-gray-200 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none"
                         }`}
                       >
-                        {isCheckingIn ? "Signing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
+                        {isCheckingIn ? "Processing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
                       </button>
                     </div>
                   </div>
