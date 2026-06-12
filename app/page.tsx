@@ -386,7 +386,7 @@ export default function Home() {
       localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      // Empty amount passed to hide "0 USDC"
+      // Empty amount passed to completely hide "0 USDC" from history
       addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
       
       void fetchBalances(wallet); 
@@ -420,9 +420,8 @@ export default function Home() {
       const signer = await provider.getSigner();
 
       showMessage("Confirm Domain Registration Fee (1 USDC)...");
-      const parsedAmount = ethers.parseUnits("1", 18); // 1 Native USDC
+      const parsedAmount = ethers.parseUnits("1", 18); 
       
-      // Sending 1 USDC to Burn Address for actual deduction
       const tx = await signer.sendTransaction({ 
         to: "0x000000000000000000000000000000000000dEaD", 
         value: parsedAmount 
@@ -450,21 +449,25 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] text-white relative font-sans flex flex-col selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#020617] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(2,6,23,1))] text-white relative font-sans flex flex-col selection:bg-cyan-500/30">
       
+      {/* TOAST NOTIFICATION */}
       {message && (
-        <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-black/60 backdrop-blur-xl px-8 py-4 shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/80 backdrop-blur-xl px-8 py-4 shadow-[0_0_40px_rgba(6,182,212,0.15)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-sm tracking-wide text-white">{message}</div>
         </div>
       )}
 
       {/* DOMAIN SUCCESS MODAL */}
       {showDomainSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-xl">
-          <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-cyan-900/20 to-black p-8 shadow-[0_0_80px_rgba(6,182,212,0.15)] flex flex-col items-center text-center relative overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl">
+          <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
             <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
             
-            <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-3xl flex items-center justify-center text-5xl text-white font-black shadow-[0_0_30px_rgba(6,182,212,0.4)] mb-6 transform -rotate-6">A</div>
+            {/* ARC LOGO IMAGE */}
+            <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
+              <img src="/arc-logo.jpg" alt="ARC Logo" className="w-full h-full object-contain rounded-2xl" />
+            </div>
             
             <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
             <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered on <span className="text-cyan-400 font-bold">Arc Testnet</span>!</p>
@@ -479,14 +482,10 @@ export default function Home() {
               <span className="bg-white/10 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider text-gray-300">Forever</span>
             </div>
 
-            <div className="w-full rounded-2xl border border-white/5 bg-black/50 p-5 flex justify-between items-center mb-8">
-              <span className="text-xs font-medium text-gray-400">Transaction Hash: <span className="text-white ml-1">{registrationHash.slice(0,6)}...{registrationHash.slice(-4)}</span></span>
+            <div className="w-full rounded-2xl border border-white/5 bg-black/50 p-5 flex justify-between items-center mb-2">
+              <span className="text-xs font-medium text-gray-400">Tx Hash: <span className="text-white ml-1">{registrationHash.slice(0,6)}...{registrationHash.slice(-4)}</span></span>
               <button onClick={() => window.open(`${ARC_EXPLORER}/tx/${registrationHash}`, "_blank")} className="bg-white/10 hover:bg-white/20 transition px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1">Explorer ↗</button>
             </div>
-
-            <button onClick={() => setShowDomainSuccess(false)} className="w-full rounded-2xl border border-cyan-500/30 bg-transparent hover:bg-cyan-500/10 py-4 font-black text-cyan-400 tracking-widest uppercase transition-all active:scale-95">
-              View Dashboard
-            </button>
           </div>
         </div>
       )}
@@ -494,29 +493,29 @@ export default function Home() {
       {/* SEND MODAL */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-zinc-950/80 p-8 shadow-2xl backdrop-blur-2xl">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#0A1A3F] p-8 shadow-2xl backdrop-blur-2xl">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-2xl font-black tracking-tight text-white">Send Asset</h3>
-              <button onClick={() => setShowSendModal(false)} className="text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5">✕</button>
+              <button onClick={() => setShowSendModal(false)} className="text-gray-400 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5">✕</button>
             </div>
             <div className="space-y-6">
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-widest">Recipient Address</label>
-                <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x..." className="w-full rounded-2xl border border-white/10 bg-black px-5 py-4 text-white focus:border-blue-500 focus:outline-none transition font-mono text-sm" />
+                <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-widest">Recipient Address</label>
+                <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x..." className="w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-white focus:border-cyan-500 focus:outline-none transition font-mono text-sm" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-widest">Select Asset</label>
+                <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-widest">Select Asset</label>
                 <div className="grid grid-cols-2 gap-4">
-                  <button onClick={() => setSendAsset("USDC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "USDC" ? "border-blue-500 bg-blue-500/10 text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.15)]" : "border-white/5 bg-black text-gray-500 hover:border-white/20 hover:text-gray-300"}`}>USDC</button>
-                  <button onClick={() => setSendAsset("EURC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "EURC" ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]" : "border-white/5 bg-black text-gray-500 hover:border-white/20 hover:text-gray-300"}`}>EURC</button>
+                  <button onClick={() => setSendAsset("USDC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "USDC" ? "border-cyan-500 bg-cyan-500/10 text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.15)]" : "border-white/5 bg-black/50 text-gray-500 hover:border-white/20 hover:text-gray-300"}`}>USDC</button>
+                  <button onClick={() => setSendAsset("EURC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "EURC" ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]" : "border-white/5 bg-black/50 text-gray-500 hover:border-white/20 hover:text-gray-300"}`}>EURC</button>
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-2 flex justify-between uppercase tracking-widest">
+                <label className="text-xs font-bold text-gray-400 mb-2 flex justify-between uppercase tracking-widest">
                   <span>Amount</span>
                   <span className="font-mono text-gray-400">Bal: {sendAsset === "USDC" ? usdcBalance : eurcBalance}</span>
                 </label>
-                <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-black px-5 py-4 text-white focus:border-blue-500 focus:outline-none transition text-2xl font-black" />
+                <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-white focus:border-cyan-500 focus:outline-none transition text-2xl font-black" />
               </div>
               <button onClick={executeSend} disabled={isSending || !sendAddress || !sendAmount} className="w-full rounded-2xl bg-white text-black hover:bg-gray-200 py-4 font-black text-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 mt-2 shadow-xl">
                 {isSending ? "Processing..." : `Send ${sendAsset}`}
@@ -527,10 +526,10 @@ export default function Home() {
       )}
 
       {/* TOP NAVIGATION */}
-      <nav className="flex items-center justify-between px-6 py-6 md:px-10 bg-transparent sticky top-0 z-40 backdrop-blur-sm">
+      <nav className="flex items-center justify-between px-6 py-6 md:px-10 bg-transparent sticky top-0 z-40 backdrop-blur-sm border-b border-white/5">
         <div className="flex items-center gap-4">
           <h1 className="text-3xl font-black tracking-tighter text-white drop-shadow-md">ArcBank</h1>
-          <span className={`rounded-full px-4 py-1.5 text-xs font-black tracking-widest uppercase border backdrop-blur-md ${isArcTestnet ? "bg-green-500/10 text-green-400 border-green-500/20" : chainId ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-white/5 text-gray-500 border-white/10"}`}>
+          <span className={`rounded-full px-4 py-1.5 text-xs font-black tracking-widest uppercase border backdrop-blur-md ${isArcTestnet ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" : chainId ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-white/5 text-gray-500 border-white/10"}`}>
             {isArcTestnet ? "Arc Testnet" : chainId ? `Chain ${chainId}` : "Offline"}
           </span>
         </div>
@@ -551,10 +550,10 @@ export default function Home() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
           
           <div className="text-center space-y-5 mt-4">
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-gray-500 pb-2">
+            <h1 className="text-6xl md:text-8xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-cyan-100 to-cyan-500 pb-2 drop-shadow-sm">
               Welcome to ArcBank
             </h1>
-            <p className="text-lg md:text-xl font-medium text-gray-400 tracking-wide max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl font-medium text-cyan-100/70 tracking-wide max-w-2xl mx-auto">
               Enterprise-grade stablecoin management built on the lightning-fast Arc L1 Network.
             </p>
           </div>
@@ -563,16 +562,16 @@ export default function Home() {
             
             {/* SIDEBAR */}
             <aside className="h-fit space-y-4">
-              <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "overview" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+              <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "overview" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 Dashboard
               </button>
-              <button onClick={() => setSelectedTab("domains")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "domains" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+              <button onClick={() => setSelectedTab("domains")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "domains" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 ARC Domains
               </button>
-              <button onClick={() => setSelectedTab("history")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "history" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+              <button onClick={() => setSelectedTab("history")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "history" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 History
               </button>
-              <button onClick={() => setSelectedTab("learn")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "learn" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+              <button onClick={() => setSelectedTab("learn")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "learn" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 Learn
               </button>
             </aside>
@@ -584,19 +583,21 @@ export default function Home() {
                   {/* BALANCES GRID & GM CHECK-IN */}
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 grid grid-cols-1 gap-8 sm:grid-cols-2">
-                      <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
+                      {/* USDC Card */}
+                      <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💵</div>
-                        <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">USDC Balance</div>
+                        <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">USDC Balance</div>
                         <div className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">{balancesLoading ? "..." : usdcBalance}</div>
-                        <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-4 py-1.5 border border-blue-500/20">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                          <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Arc Native Gas</span>
+                        <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-4 py-1.5 border border-cyan-500/20">
+                          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+                          <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Arc Native Gas</span>
                         </div>
                       </div>
 
-                      <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
+                      {/* EURC Card */}
+                      <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💶</div>
-                        <div className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">EURC Balance</div>
+                        <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">EURC Balance</div>
                         <div className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">{balancesLoading ? "..." : eurcBalance}</div>
                         <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 border border-emerald-500/20">
                           <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -605,6 +606,7 @@ export default function Home() {
                       </div>
                     </div>
 
+                    {/* DAILY GM CHECK-IN CARD */}
                     <div className="rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b from-orange-500/10 to-black backdrop-blur-2xl p-8 shadow-[0_0_40px_rgba(249,115,22,0.05)] flex flex-col justify-center items-center text-center relative overflow-hidden group">
                       <div className="absolute -top-6 -right-6 p-4 opacity-10 text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
                       
@@ -630,16 +632,16 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW - CLEAN TEXT ONLY */}
+                  {/* QUICK ACTIONS ROW - CLEAN & PROFESSIONAL */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
-                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Send Assets</div>
+                    <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
                     </button>
-                    <button onClick={copyAddress} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
-                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Receive Funds</div>
+                    <button onClick={copyAddress} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Receive Funds</div>
                     </button>
-                    <button onClick={openFaucet} className="group rounded-[2.5rem] border border-white/5 bg-white/[0.02] backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
-                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform">Get Tokens</div>
+                    <button onClick={openFaucet} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                      <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Get Tokens</div>
                     </button>
                   </div>
                 </>
@@ -647,7 +649,7 @@ export default function Home() {
 
               {/* ARC DOMAINS TAB */}
               {selectedTab === "domains" && (
-                <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-cyan-900/10 to-black backdrop-blur-3xl p-10 shadow-2xl relative overflow-hidden">
+                <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl p-10 shadow-2xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-10 opacity-5 text-9xl">🌐</div>
                   <h2 className="text-4xl font-black text-white tracking-tight mb-3">ARC Web3 Identity</h2>
                   <p className="text-gray-400 font-medium mb-10 max-w-xl">Register your unique <span className="text-cyan-400 font-bold">.arc</span> username on the blockchain and establish your lifetime identity.</p>
@@ -709,7 +711,7 @@ export default function Home() {
                       </div>
                     ) : (
                       txHistory.map((item) => (
-                        <div key={item.id} className="rounded-2xl border border-white/5 bg-black/60 p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-6 hover:border-white/10 transition-all hover:bg-black/80">
+                        <div key={item.id} className="rounded-2xl border border-white/5 bg-[#0A1A3F]/30 p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-6 hover:border-white/10 transition-all hover:bg-black/80">
                           <div className="flex items-center gap-6">
                             <div className={`p-4 rounded-full border ${item.status === "Completed" ? "bg-green-500/10 text-green-400 border-green-500/20" : item.status === "Failed" ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
                               {item.status === "Completed" ? "✓" : item.status === "Failed" ? "✕" : "⏳"}
@@ -717,16 +719,17 @@ export default function Home() {
                             <div>
                               <div className="font-black text-xl text-white tracking-tight">{item.label}</div>
                               {item.txHash ? (
-                                <a href={`${ARC_EXPLORER}/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className="mt-1.5 text-sm font-bold text-blue-400 hover:text-blue-300 underline underline-offset-4 flex items-center gap-1.5 transition-colors">
+                                <a href={`${ARC_EXPLORER}/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className="mt-1.5 text-sm font-bold text-cyan-400 hover:text-cyan-300 underline underline-offset-4 flex items-center gap-1.5 transition-colors">
                                   {item.meta} <span className="text-xs">↗</span>
                                 </a>
                               ) : (
-                                <div className="mt-1.5 text-sm font-bold text-gray-500">{item.meta}</div>
+                                <div className="mt-1.5 text-sm font-bold text-gray-400">{item.meta}</div>
                               )}
                             </div>
                           </div>
                           
                           <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
+                            {/* "0 USDC" won't show anymore because we pass an empty string */}
                             {item.amount && (
                               <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
                                 {item.amount}
@@ -746,10 +749,10 @@ export default function Home() {
               {/* LEARN SECTION TAB */}
               {selectedTab === "learn" && (
                 <div className="space-y-8">
-                  <div className="rounded-[2.5rem] border border-blue-500/20 bg-gradient-to-br from-blue-900/20 to-black backdrop-blur-3xl p-12 shadow-2xl relative overflow-hidden">
+                  <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl p-12 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-10 opacity-10 text-9xl">📖</div>
                     <h2 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tighter drop-shadow-md">What is Arc Network?</h2>
-                    <p className="text-lg md:text-xl text-gray-300 font-medium leading-relaxed max-w-3xl mb-10">
+                    <p className="text-lg md:text-xl text-cyan-100/70 font-medium leading-relaxed max-w-3xl mb-10">
                       Arc is an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
                     </p>
                     <button onClick={openArcWebsite} className="rounded-full bg-white text-black hover:bg-gray-200 px-10 py-4 font-black transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center gap-3">
@@ -762,7 +765,7 @@ export default function Home() {
                       <div className="text-6xl mb-8">🌐</div>
                       <h3 className="text-3xl font-black text-white mb-4 tracking-tight">Circle Integration</h3>
                       <p className="text-gray-400 font-medium leading-relaxed text-lg">
-                        Arc natively supports Circle's major stablecoins like <strong className="text-blue-400">USDC</strong> (US Dollar) and <strong className="text-emerald-400">EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
+                        Arc natively supports Circle's major stablecoins like <strong className="text-cyan-400">USDC</strong> (US Dollar) and <strong className="text-emerald-400">EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
                       </p>
                     </div>
 
@@ -770,7 +773,7 @@ export default function Home() {
                       <div className="text-6xl mb-8">⚡</div>
                       <h3 className="text-3xl font-black text-white mb-4 tracking-tight">Native Gas Asset</h3>
                       <p className="text-gray-400 font-medium leading-relaxed text-lg">
-                        Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className="text-blue-400">USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
+                        Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className="text-cyan-400">USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
                       </p>
                     </div>
                   </div>
