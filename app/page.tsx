@@ -29,7 +29,7 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "history" | "learn">("overview");
+  const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "arcpass" | "history" | "learn">("overview");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [eurcBalance, setEurcBalance] = useState("0.00");
@@ -197,6 +197,7 @@ export default function Home() {
         setEurcBalance("0.00");
         setHasCheckedInToday(false);
         setStreak(0);
+        setRegisteredDomain("");
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -286,6 +287,7 @@ export default function Home() {
     setChainId(null);
     setUsdcBalance("0.00");
     setEurcBalance("0.00");
+    setRegisteredDomain("");
     showMessage("Wallet Disconnected");
   };
 
@@ -371,7 +373,8 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      showMessage("Confirm Daily GM Check-in (Zero-value tx)");
+      // FIXED TOAST MESSAGE: Simple and clean
+      showMessage("Confirm Daily GM Check-in...");
       const tx = await signer.sendTransaction({ to: wallet, value: 0 });
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
@@ -386,7 +389,6 @@ export default function Home() {
       localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      // Empty amount passed to completely hide "0 USDC" from history
       addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
       
       void fetchBalances(wallet); 
@@ -568,6 +570,10 @@ export default function Home() {
               <button onClick={() => setSelectedTab("domains")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "domains" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 ARC Domains
               </button>
+              <button onClick={() => setSelectedTab("arcpass")} className={`w-full rounded-[2rem] px-8 py-5 text-left flex justify-between items-center font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "arcpass" ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.2)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
+                <span>Arc Pass</span>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded-lg">NEW</span>
+              </button>
               <button onClick={() => setSelectedTab("history")} className={`w-full rounded-[2rem] px-8 py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "history" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 History
               </button>
@@ -583,7 +589,6 @@ export default function Home() {
                   {/* BALANCES GRID & GM CHECK-IN */}
                   <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 grid grid-cols-1 gap-8 sm:grid-cols-2">
-                      {/* USDC Card */}
                       <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💵</div>
                         <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">USDC Balance</div>
@@ -594,7 +599,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* EURC Card */}
                       <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💶</div>
                         <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">EURC Balance</div>
@@ -632,7 +636,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW - CLEAN & PROFESSIONAL */}
+                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                     <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
                       <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
@@ -690,6 +694,91 @@ export default function Home() {
                 </div>
               )}
 
+              {/* ARC PASS (NEW UNIQUE FEATURE) */}
+              {selectedTab === "arcpass" && (
+                <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl flex flex-col items-center justify-center min-h-[60vh] relative overflow-hidden">
+                  
+                  {/* Glowing background effects for the ID area */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+                  {!registeredDomain ? (
+                    <div className="text-center z-10 max-w-lg">
+                      <div className="text-7xl mb-6">🪪</div>
+                      <h2 className="text-3xl font-black text-white mb-4">Unlock Your Arc Pass</h2>
+                      <p className="text-gray-400 mb-8">You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
+                      <button onClick={() => setSelectedTab("domains")} className="bg-cyan-500 hover:bg-cyan-400 text-black font-black px-8 py-4 rounded-full transition-all active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                        Register Domain Now
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="z-10 w-full flex flex-col items-center">
+                      <div className="text-center mb-10">
+                        <h2 className="text-3xl font-black text-white tracking-tight">Your Digital Identity</h2>
+                        <p className="text-cyan-400 font-bold mt-2">Verified on Arc Blockchain</p>
+                      </div>
+
+                      {/* THE ARC PASS (Holographic Glass Card) */}
+                      <div className="w-full max-w-[450px] aspect-[1.58/1] rounded-[2rem] border border-white/20 bg-gradient-to-br from-white/10 to-white/[0.02] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-8 transform transition-transform hover:scale-105 hover:rotate-1 duration-500 group">
+                        
+                        {/* Shimmer Effect */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
+
+                        {/* Top Row */}
+                        <div className="flex justify-between items-start w-full relative z-10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-black rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1">
+                              <img src="/arc-logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+                            </div>
+                            <div className="font-black text-xl text-white tracking-widest uppercase">ARC PASS</div>
+                          </div>
+                          <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                            Verified
+                          </div>
+                        </div>
+
+                        {/* Middle Row (Domain & Wallet) */}
+                        <div className="relative z-10 mt-6">
+                          <div className="text-[10px] text-cyan-200/70 font-black uppercase tracking-[0.2em] mb-1">Web3 Identity</div>
+                          <div className="text-3xl font-black text-white tracking-tight drop-shadow-md">{registeredDomain}</div>
+                          <div className="text-sm font-mono text-gray-400 mt-2 bg-black/30 inline-block px-3 py-1 rounded-lg border border-white/5">
+                            {wallet.slice(0,6)}...{wallet.slice(-4)}
+                          </div>
+                        </div>
+
+                        {/* Bottom Row (Stats & QR Fake) */}
+                        <div className="flex justify-between items-end w-full relative z-10">
+                          <div className="flex gap-6">
+                            <div>
+                              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Network</div>
+                              <div className="font-black text-sm text-cyan-400">ARC TESTNET</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">GM Streak</div>
+                              <div className="font-black text-sm text-orange-400 flex items-center gap-1">
+                                {streak} DAYS 🔥
+                              </div>
+                            </div>
+                          </div>
+                          {/* Minimalist QR Placeholder */}
+                          <div className="w-12 h-12 bg-white/10 rounded-xl p-1.5 backdrop-blur-md border border-white/20 flex flex-wrap gap-0.5 justify-between content-between">
+                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
+                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
+                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
+                             <div className="w-[48%] h-[48%] bg-cyan-400 rounded-sm"></div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button onClick={() => showMessage("Screenshot captured! (Simulation)")} className="mt-10 flex items-center gap-2 text-gray-400 hover:text-white transition font-bold text-sm">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Save Arc Pass Image
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* HISTORY TAB */}
               {selectedTab === "history" && (
                 <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl">
@@ -729,7 +818,7 @@ export default function Home() {
                           </div>
                           
                           <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
-                            {/* "0 USDC" won't show anymore because we pass an empty string */}
+                            {/* Empty amount from GM check-in will completely hide this section */}
                             {item.amount && (
                               <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
                                 {item.amount}
@@ -749,7 +838,7 @@ export default function Home() {
               {/* LEARN SECTION TAB */}
               {selectedTab === "learn" && (
                 <div className="space-y-8">
-                  <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl p-12 shadow-2xl relative overflow-hidden">
+                  <div className="rounded-[2.5rem] border border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl p-12 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-10 opacity-10 text-9xl">📖</div>
                     <h2 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tighter drop-shadow-md">What is Arc Network?</h2>
                     <p className="text-lg md:text-xl text-cyan-100/70 font-medium leading-relaxed max-w-3xl mb-10">
@@ -803,7 +892,7 @@ export default function Home() {
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://www.linkedin.com/in/jubayir-haider-302aab372" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-[#0a66c2] transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.848-3.037-1.85 0-2.132 1.445-2.132 2.939v5.667H9.36V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.848-3.037-1.85 0-2.132 1.445-2.132 2.939v5.667H9.36V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
               </a>
             </div>
           </div>
