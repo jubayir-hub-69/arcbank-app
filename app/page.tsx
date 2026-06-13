@@ -373,7 +373,6 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // FIXED: Professional and short message
       showMessage("Confirm Daily GM Check-in...");
       const tx = await signer.sendTransaction({ to: wallet, value: 0 });
 
@@ -399,7 +398,7 @@ export default function Home() {
     }
   };
 
-  // DOMAIN REGISTRATION LOGIC
+  // DOMAIN REGISTRATION LOGIC WITH 24H COOLDOWN
   const handleSearchDomain = () => {
     if (!domainSearch.trim()) return showMessage("Enter a domain name");
     setDomainAvailable(true);
@@ -407,6 +406,18 @@ export default function Home() {
 
   const executeRegisterDomain = async () => {
     if (!wallet) return showMessage("Connect wallet first");
+    
+    // Check 24-hour limit
+    const lastRegStr = localStorage.getItem(`arcbank_last_domain_${wallet}`);
+    if (lastRegStr) {
+      const lastRegTime = new Date(lastRegStr).getTime();
+      const now = new Date().getTime();
+      const hoursPassed = (now - lastRegTime) / (1000 * 60 * 60);
+      if (hoursPassed < 24) {
+        return showMessage(`You can only register one domain per 24 hours. Please wait.`);
+      }
+    }
+
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
@@ -421,7 +432,7 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      showMessage("Confirm Domain Registration Fee (1 USDC)...");
+      showMessage("Confirm Domain Registration...");
       const parsedAmount = ethers.parseUnits("1", 18); 
       
       const tx = await signer.sendTransaction({ 
@@ -437,6 +448,9 @@ export default function Home() {
       setRegisteredDomain(newDomain);
       setRegistrationHash(txHash);
       
+      // Save registration time for the 24h limit
+      localStorage.setItem(`arcbank_last_domain_${wallet}`, new Date().toISOString());
+
       addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
@@ -450,36 +464,46 @@ export default function Home() {
     }
   };
 
-  // SHARE TO X LOGIC
+  // SHARE TO X LOGIC (Custom text as requested)
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted my @arc domain pass! 🌐✨\n\nBuilt by @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBuilt on @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
 
   // REAL HD IMAGE DOWNLOAD LOGIC
   const downloadArcPass = () => {
-    showMessage("Generating High-Quality Image... ⏳");
+    showMessage("Generating Image... Please wait ⏳");
     const element = document.getElementById("arc-pass-card");
     if (!element) return;
 
-    // Dynamically loading html2canvas so it doesn't break Vercel build
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    script.onload = () => {
-      (window as any).html2canvas(element, { 
+    const generateCanvas = (html2canvasFn: any) => {
+      html2canvasFn(element, { 
         backgroundColor: "#050B14", 
-        scale: 3, // High Resolution
-        useCORS: true 
+        scale: 3, 
+        useCORS: true,
+        allowTaint: true 
       }).then((canvas: HTMLCanvasElement) => {
         const link = document.createElement('a');
-        link.download = `${registeredDomain || 'my-arc'}-pass.png`;
+        link.download = `${registeredDomain || 'arc'}-pass.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
         showMessage("Arc Pass saved to your device! 📸");
-      }).catch(() => showMessage("Failed to generate image."));
+      }).catch((err: any) => {
+        console.error("Canvas Error:", err);
+        showMessage("Failed to generate image.");
+      });
     };
-    document.body.appendChild(script);
+
+    if ((window as any).html2canvas) {
+      generateCanvas((window as any).html2canvas);
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      script.onload = () => generateCanvas((window as any).html2canvas);
+      script.onerror = () => showMessage("Could not load image generator.");
+      document.body.appendChild(script);
+    }
   };
 
   return (
@@ -500,7 +524,7 @@ export default function Home() {
             
             {/* ARC LOGO IMAGE */}
             <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
-              <img src="/arc-logo.jpg" alt="ARC Logo" className="w-full h-full object-contain rounded-2xl" />
+              <img src="/arc-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
             </div>
             
             <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
@@ -709,7 +733,7 @@ export default function Home() {
                     <div className="mt-8 flex flex-col sm:flex-row items-center justify-between p-6 bg-cyan-950/30 border border-cyan-500/30 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex items-center gap-5">
                         <div className="w-14 h-14 bg-[#050B14] border border-cyan-500/20 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.3)] p-1.5">
-                          <img src="/arc-logo.jpg" alt="A" className="w-full h-full object-contain rounded-xl" />
+                          <img src="/arc-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-xl" />
                         </div>
                         <div className="text-2xl font-black text-white">{domainSearch}.arc</div>
                       </div>
@@ -732,7 +756,6 @@ export default function Home() {
               {selectedTab === "arcpass" && (
                 <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl flex flex-col items-center justify-center min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                   
-                  {/* Glowing background effects for the ID area */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none"></div>
 
                   {!registeredDomain ? (
@@ -751,17 +774,15 @@ export default function Home() {
                         <p className="text-cyan-400 font-bold mt-2">Verified on Arc Blockchain</p>
                       </div>
 
-                      {/* THE ARC PASS (Holographic Glass Card) */}
+                      {/* THE ARC PASS CARD (For Download) */}
                       <div id="arc-pass-card" className="w-full max-w-[450px] aspect-[1.58/1] rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-8 transform transition-transform hover:scale-105 hover:rotate-1 duration-500 group">
                         
-                        {/* Shimmer Effect */}
                         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
 
-                        {/* Top Row */}
                         <div className="flex justify-between items-start w-full relative z-10">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-[#050B14] rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1.5 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-                              <img src="/arc-logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-md" />
+                              <img src="/arc-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
                             </div>
                             <div className="font-black text-xl text-white tracking-widest uppercase">ARC PASS</div>
                           </div>
@@ -771,7 +792,6 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Middle Row (Domain & Wallet) */}
                         <div className="relative z-10 mt-6">
                           <div className="text-[10px] text-cyan-200/70 font-black uppercase tracking-[0.2em] mb-1">Web3 Identity</div>
                           <div className="text-3xl font-black text-white tracking-tight drop-shadow-md">{registeredDomain}</div>
@@ -780,7 +800,6 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Bottom Row (Stats) - QR Removed */}
                         <div className="flex justify-between items-end w-full relative z-10">
                           <div className="flex gap-6">
                             <div>
@@ -797,7 +816,7 @@ export default function Home() {
                         </div>
                       </div>
                       
-                      {/* ACTION BUTTONS: Download & Share to X */}
+                      {/* ACTION BUTTONS */}
                       <div className="mt-10 flex flex-wrap justify-center gap-4">
                         <button onClick={downloadArcPass} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full transition-all font-bold text-sm border border-white/10 active:scale-95 shadow-lg">
                           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -854,6 +873,7 @@ export default function Home() {
                           </div>
                           
                           <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
+                            {/* Empty amount from GM check-in will completely hide this section */}
                             {item.amount && (
                               <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
                                 {item.amount}
