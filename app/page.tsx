@@ -373,7 +373,7 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // FIXED TOAST MESSAGE: Simple and clean
+      // FIXED: Professional and short message
       showMessage("Confirm Daily GM Check-in...");
       const tx = await signer.sendTransaction({ to: wallet, value: 0 });
 
@@ -448,6 +448,38 @@ export default function Home() {
     } finally {
       setIsRegistering(false);
     }
+  };
+
+  // SHARE TO X LOGIC
+  const shareOnX = () => {
+    const text = encodeURIComponent(`Minted my @arc domain pass! 🌐✨\n\nBuilt by @jubayirhaider90\n\n`);
+    const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+  };
+
+  // REAL HD IMAGE DOWNLOAD LOGIC
+  const downloadArcPass = () => {
+    showMessage("Generating High-Quality Image... ⏳");
+    const element = document.getElementById("arc-pass-card");
+    if (!element) return;
+
+    // Dynamically loading html2canvas so it doesn't break Vercel build
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    script.onload = () => {
+      (window as any).html2canvas(element, { 
+        backgroundColor: "#050B14", 
+        scale: 3, // High Resolution
+        useCORS: true 
+      }).then((canvas: HTMLCanvasElement) => {
+        const link = document.createElement('a');
+        link.download = `${registeredDomain || 'my-arc'}-pass.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showMessage("Arc Pass saved to your device! 📸");
+      }).catch(() => showMessage("Failed to generate image."));
+    };
+    document.body.appendChild(script);
   };
 
   return (
@@ -636,7 +668,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW */}
+                  {/* QUICK ACTIONS ROW - CLEAN TEXT ONLY */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                     <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
                       <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
@@ -653,12 +685,12 @@ export default function Home() {
 
               {/* ARC DOMAINS TAB */}
               {selectedTab === "domains" && (
-                <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl p-10 shadow-2xl relative overflow-hidden">
+                <div className="rounded-[2.5rem] border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl p-10 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                   <div className="absolute top-0 right-0 p-10 opacity-5 text-9xl">🌐</div>
                   <h2 className="text-4xl font-black text-white tracking-tight mb-3">ARC Web3 Identity</h2>
                   <p className="text-gray-400 font-medium mb-10 max-w-xl">Register your unique <span className="text-cyan-400 font-bold">.arc</span> username on the blockchain and establish your lifetime identity.</p>
                   
-                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-3xl bg-black border border-cyan-500/30 rounded-full p-2 pl-6 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-3xl bg-black border border-cyan-500/30 rounded-full p-2 pl-6 shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-shadow">
                     <span className="text-cyan-500 text-xl font-bold">∞</span>
                     <input 
                       type="text" 
@@ -674,9 +706,11 @@ export default function Home() {
                   </div>
 
                   {domainAvailable && (
-                    <div className="mt-8 flex flex-col sm:flex-row items-center justify-between p-6 bg-cyan-950/30 border border-cyan-500/30 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4">
+                    <div className="mt-8 flex flex-col sm:flex-row items-center justify-between p-6 bg-cyan-950/30 border border-cyan-500/30 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center text-3xl text-white font-black shadow-lg">A</div>
+                        <div className="w-14 h-14 bg-[#050B14] border border-cyan-500/20 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.3)] p-1.5">
+                          <img src="/arc-logo.jpg" alt="A" className="w-full h-full object-contain rounded-xl" />
+                        </div>
                         <div className="text-2xl font-black text-white">{domainSearch}.arc</div>
                       </div>
                       <div className="flex items-center gap-6 mt-4 sm:mt-0">
@@ -684,7 +718,7 @@ export default function Home() {
                         <button 
                           onClick={executeRegisterDomain} 
                           disabled={isRegistering}
-                          className="bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black px-8 py-3.5 rounded-full transition-all active:scale-95 text-lg shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+                          className="bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black px-8 py-3.5 rounded-full transition-all active:scale-95 text-lg shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
                         >
                           {isRegistering ? "Registering..." : "Register"}
                         </button>
@@ -696,14 +730,14 @@ export default function Home() {
 
               {/* ARC PASS (NEW UNIQUE FEATURE) */}
               {selectedTab === "arcpass" && (
-                <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl flex flex-col items-center justify-center min-h-[60vh] relative overflow-hidden">
+                <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl flex flex-col items-center justify-center min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                   
                   {/* Glowing background effects for the ID area */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/20 rounded-full blur-[100px] pointer-events-none"></div>
 
                   {!registeredDomain ? (
                     <div className="text-center z-10 max-w-lg">
-                      <div className="text-7xl mb-6">🪪</div>
+                      <div className="text-7xl mb-6 animate-pulse">🪪</div>
                       <h2 className="text-3xl font-black text-white mb-4">Unlock Your Arc Pass</h2>
                       <p className="text-gray-400 mb-8">You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
                       <button onClick={() => setSelectedTab("domains")} className="bg-cyan-500 hover:bg-cyan-400 text-black font-black px-8 py-4 rounded-full transition-all active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.3)]">
@@ -718,7 +752,7 @@ export default function Home() {
                       </div>
 
                       {/* THE ARC PASS (Holographic Glass Card) */}
-                      <div className="w-full max-w-[450px] aspect-[1.58/1] rounded-[2rem] border border-white/20 bg-gradient-to-br from-white/10 to-white/[0.02] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-8 transform transition-transform hover:scale-105 hover:rotate-1 duration-500 group">
+                      <div id="arc-pass-card" className="w-full max-w-[450px] aspect-[1.58/1] rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-8 transform transition-transform hover:scale-105 hover:rotate-1 duration-500 group">
                         
                         {/* Shimmer Effect */}
                         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
@@ -726,8 +760,8 @@ export default function Home() {
                         {/* Top Row */}
                         <div className="flex justify-between items-start w-full relative z-10">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-black rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1">
-                              <img src="/arc-logo.jpg" alt="Logo" className="w-full h-full object-contain" />
+                            <div className="w-10 h-10 bg-[#050B14] rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1.5 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                              <img src="/arc-logo.jpg" alt="Logo" className="w-full h-full object-contain rounded-md" />
                             </div>
                             <div className="font-black text-xl text-white tracking-widest uppercase">ARC PASS</div>
                           </div>
@@ -746,7 +780,7 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Bottom Row (Stats & QR Fake) */}
+                        {/* Bottom Row (Stats) - QR Removed */}
                         <div className="flex justify-between items-end w-full relative z-10">
                           <div className="flex gap-6">
                             <div>
@@ -760,20 +794,22 @@ export default function Home() {
                               </div>
                             </div>
                           </div>
-                          {/* Minimalist QR Placeholder */}
-                          <div className="w-12 h-12 bg-white/10 rounded-xl p-1.5 backdrop-blur-md border border-white/20 flex flex-wrap gap-0.5 justify-between content-between">
-                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
-                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
-                             <div className="w-[48%] h-[48%] bg-white/80 rounded-sm"></div>
-                             <div className="w-[48%] h-[48%] bg-cyan-400 rounded-sm"></div>
-                          </div>
                         </div>
                       </div>
                       
-                      <button onClick={() => showMessage("Screenshot captured! (Simulation)")} className="mt-10 flex items-center gap-2 text-gray-400 hover:text-white transition font-bold text-sm">
-                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Save Arc Pass Image
-                      </button>
+                      {/* ACTION BUTTONS: Download & Share to X */}
+                      <div className="mt-10 flex flex-wrap justify-center gap-4">
+                        <button onClick={downloadArcPass} className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full transition-all font-bold text-sm border border-white/10 active:scale-95 shadow-lg">
+                          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                          Save Image
+                        </button>
+                        
+                        <button onClick={shareOnX} className="flex items-center gap-2 bg-black hover:bg-zinc-900 text-white px-6 py-3 rounded-full transition-all font-bold text-sm border border-zinc-800 active:scale-95 shadow-lg">
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+                          Share on X
+                        </button>
+                      </div>
+
                     </div>
                   )}
                 </div>
@@ -781,7 +817,7 @@ export default function Home() {
 
               {/* HISTORY TAB */}
               {selectedTab === "history" && (
-                <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl">
+                <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl animate-in fade-in duration-500">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
                     <div>
                       <h2 className="text-3xl font-black text-white tracking-tight">Transaction History</h2>
@@ -818,7 +854,6 @@ export default function Home() {
                           </div>
                           
                           <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
-                            {/* Empty amount from GM check-in will completely hide this section */}
                             {item.amount && (
                               <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
                                 {item.amount}
@@ -837,7 +872,7 @@ export default function Home() {
 
               {/* LEARN SECTION TAB */}
               {selectedTab === "learn" && (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-in fade-in duration-500">
                   <div className="rounded-[2.5rem] border border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl p-12 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-10 opacity-10 text-9xl">📖</div>
                     <h2 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tighter drop-shadow-md">What is Arc Network?</h2>
@@ -887,6 +922,9 @@ export default function Home() {
             <div className="flex gap-4">
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              </a>
+              <a href="https://x.com/arc" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
