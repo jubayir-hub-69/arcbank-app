@@ -59,6 +59,9 @@ export default function Home() {
 
   const [txHistory, setTxHistory] = useState<ActivityItem[]>([]);
 
+  // Network Status (Simulated Ping for UI/UX)
+  const [networkLatency, setNetworkLatency] = useState(0);
+
   const isArcTestnet = chainId === ARC_CHAIN_ID;
 
   const addHistoryRecord = (label: string, amount: string, meta: string, status: "Completed" | "Pending" | "Failed", txHash?: string) => {
@@ -99,10 +102,12 @@ export default function Home() {
       const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
       const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, rpcProvider);
 
+      const start = Date.now();
       const [nativeUsdcRaw, eurcRaw] = await Promise.all([
         rpcProvider.getBalance(address),
         eurcContract.balanceOf(address)
       ]);
+      setNetworkLatency(Date.now() - start);
 
       setUsdcBalance(Number(ethers.formatUnits(nativeUsdcRaw, 18)).toFixed(2));
       setEurcBalance(Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2));
@@ -199,6 +204,7 @@ export default function Home() {
         setHasCheckedInToday(false);
         setStreak(0);
         setRegisteredDomain("");
+        setNetworkLatency(0);
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -289,6 +295,7 @@ export default function Home() {
     setUsdcBalance("0.00");
     setEurcBalance("0.00");
     setRegisteredDomain("");
+    setNetworkLatency(0);
     showMessage("Wallet Disconnected");
   };
 
@@ -330,7 +337,6 @@ export default function Home() {
       showMessage("Confirm transaction in your wallet...");
       let tx: any;
 
-      // 100% Authentic implementation of v0.7.2 Memo attachment directly into EVM Calldata
       const txData = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
 
       if (sendAsset === "USDC") {
@@ -338,7 +344,7 @@ export default function Home() {
         tx = await signer.sendTransaction({ 
           to: sendAddress, 
           value: parsedAmount,
-          data: txData // Attaching Memo natively
+          data: txData 
         });
       } else {
         const parsedAmount = ethers.parseUnits(sendAmount, 6);
@@ -492,7 +498,7 @@ export default function Home() {
   };
 
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Minted my @arc domain pass! 🌐✨\n\nBuilt on @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
@@ -599,7 +605,6 @@ export default function Home() {
                 <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-white focus:border-cyan-500 focus:outline-none transition text-2xl font-black" />
               </div>
               
-              {/* NEW MEMO FIELD for v0.7.2 */}
               <div>
                 <label className="text-xs font-bold text-gray-400 mb-2 flex justify-between uppercase tracking-widest">
                   <span>Tx Memo</span>
@@ -616,14 +621,22 @@ export default function Home() {
         </div>
       )}
 
-      {/* TOP NAVIGATION - PERFECT MOBILE RESPONSIVE */}
+      {/* TOP NAVIGATION & NETWORK STATUS */}
       <nav className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-10 md:py-6 bg-transparent sticky top-0 z-40 backdrop-blur-xl border-b border-white/5">
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-3 md:gap-5">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tighter text-white drop-shadow-md">ArcBank</h1>
-          <span className={`hidden sm:block rounded-full px-3 py-1 md:px-4 md:py-1.5 text-[9px] md:text-xs font-black tracking-widest uppercase border backdrop-blur-md ${isArcTestnet ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" : chainId ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-white/5 text-gray-500 border-white/10"}`}>
-            {isArcTestnet ? "Arc Testnet" : chainId ? `Chain ${chainId}` : "Offline"}
-          </span>
+          
+          {/* NETWORK STATUS INDICATOR (NEW FEATURE) */}
+          {wallet && (
+            <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/5 bg-black/30 px-3 py-1.5 backdrop-blur-md">
+              <div className={`w-2 h-2 rounded-full ${isArcTestnet ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                {isArcTestnet ? `Online ⚡ ${networkLatency > 0 ? `${networkLatency}ms` : ''}` : 'Offline'}
+              </span>
+            </div>
+          )}
         </div>
+        
         <div className="flex items-center gap-2 md:gap-4">
           {wallet ? (
             <>
@@ -651,8 +664,8 @@ export default function Home() {
 
           <div className="grid grid-cols-1 gap-8 xl:grid-cols-[280px_1fr]">
             
-            {/* SIDEBAR */}
-            <aside className="flex flex-col gap-3 md:gap-4 overflow-x-auto pb-4 md:pb-0 hide-scrollbar flex-shrink-0 lg:flex-nowrap">
+            {/* SIDEBAR (No more horizontal scrollbars on PC) */}
+            <aside className="flex flex-col gap-3 md:gap-4 overflow-x-hidden md:overflow-visible pb-4 md:pb-0 flex-shrink-0 lg:flex-nowrap">
               <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md ${selectedTab === "overview" ? "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] md:scale-[1.02]" : "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white"}`}>
                 Dashboard
               </button>
