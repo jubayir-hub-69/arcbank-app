@@ -404,6 +404,26 @@ export default function Home() {
     setDomainAvailable(true);
   };
 
+  // CONFETTI MAGIC SCRIPT
+  const triggerConfetti = () => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js";
+    script.onload = () => {
+      const duration = 3 * 1000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100000 };
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+      const interval: any = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+        if (timeLeft <= 0) return clearInterval(interval);
+        const particleCount = 50 * (timeLeft / duration);
+        (window as any).confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+        (window as any).confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+      }, 250);
+    };
+    document.body.appendChild(script);
+  };
+
   const executeRegisterDomain = async () => {
     if (!wallet) return showMessage("Connect wallet first");
     
@@ -454,6 +474,8 @@ export default function Home() {
       addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
+      triggerConfetti(); // TRIGER RING CONFETTI ANIMATION
+
       setDomainSearch("");
       setDomainAvailable(false);
       void fetchBalances(wallet);
@@ -466,28 +488,30 @@ export default function Home() {
 
   // SHARE TO X LOGIC (Custom text as requested)
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBuilt on @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
 
-  // REAL HD IMAGE DOWNLOAD LOGIC
+  // ROBUST HD IMAGE DOWNLOAD LOGIC
   const downloadArcPass = () => {
     showMessage("Generating Image... Please wait ⏳");
     const element = document.getElementById("arc-pass-card");
     if (!element) return;
 
-    const generateCanvas = (html2canvasFn: any) => {
-      html2canvasFn(element, { 
-        backgroundColor: "#050B14", 
+    const runCanvas = () => {
+      (window as any).html2canvas(element, { 
+        backgroundColor: "#050B14", // Solid color avoids blur rendering issues
         scale: 3, 
         useCORS: true,
         allowTaint: true 
       }).then((canvas: HTMLCanvasElement) => {
         const link = document.createElement('a');
         link.download = `${registeredDomain || 'arc'}-pass.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.href = canvas.toDataURL('image/png', 1.0);
+        document.body.appendChild(link); // Required for mobile browsers to allow download
         link.click();
+        document.body.removeChild(link);
         showMessage("Arc Pass saved to your device! 📸");
       }).catch((err: any) => {
         console.error("Canvas Error:", err);
@@ -496,11 +520,11 @@ export default function Home() {
     };
 
     if ((window as any).html2canvas) {
-      generateCanvas((window as any).html2canvas);
+      runCanvas();
     } else {
       const script = document.createElement("script");
       script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      script.onload = () => generateCanvas((window as any).html2canvas);
+      script.onload = runCanvas;
       script.onerror = () => showMessage("Could not load image generator.");
       document.body.appendChild(script);
     }
@@ -649,20 +673,12 @@ export default function Home() {
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💵</div>
                         <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">USDC Balance</div>
                         <div className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">{balancesLoading ? "..." : usdcBalance}</div>
-                        <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-cyan-500/10 px-4 py-1.5 border border-cyan-500/20">
-                          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
-                          <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Arc Native Gas</span>
-                        </div>
                       </div>
 
                       <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent backdrop-blur-2xl p-8 shadow-2xl relative overflow-hidden group hover:border-white/20 transition-all duration-500 hover:-translate-y-1">
                         <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-9xl group-hover:scale-110">💶</div>
                         <div className="text-xs font-black text-cyan-500 uppercase tracking-widest mb-4">EURC Balance</div>
                         <div className="text-5xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">{balancesLoading ? "..." : eurcBalance}</div>
-                        <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 border border-emerald-500/20">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Euro Stablecoin</span>
-                        </div>
                       </div>
                     </div>
 
@@ -752,7 +768,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* ARC PASS (NEW UNIQUE FEATURE) */}
+              {/* ARC PASS */}
               {selectedTab === "arcpass" && (
                 <div className="rounded-[2.5rem] border border-white/10 bg-white/[0.02] backdrop-blur-3xl p-10 shadow-2xl flex flex-col items-center justify-center min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
                   
@@ -932,19 +948,16 @@ export default function Home() {
       <footer className="mt-auto border-t border-white/10 bg-black/60 py-12 backdrop-blur-2xl">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-8 px-6 md:flex-row">
           <div className="text-sm font-bold text-gray-500 tracking-widest uppercase">
-            © 2026 ARC Bank · Built on Arc
+            © 2026 ARC BANK · BUILD ON ARC
           </div>
           
           <div className="flex flex-col items-center gap-4 md:items-end">
             <div className="text-xs font-black text-gray-500 uppercase tracking-widest">
-              Built by <span className="text-white">JUBAYIR69</span>
+              BUILD BY <span className="text-white">JUBAYIR69</span>
             </div>
             <div className="flex gap-4">
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
-              </a>
-              <a href="https://x.com/arc" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
