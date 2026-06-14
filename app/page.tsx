@@ -31,17 +31,16 @@ export default function Home() {
   const [chainId, setChainId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "arcpass" | "history" | "learn">("overview");
   
-  // Theme State
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Send Modal (Updated for Batch & Memo Fix)
+  // Send Modal
   const [showSendModal, setShowSendModal] = useState(false);
-  const [isBatchMode, setIsBatchMode] = useState(false); // NEW: BATCH MODE TOGGLE
-  const [sendAddress, setSendAddress] = useState(""); // Can hold multiple addresses in batch mode
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [sendMemo, setSendMemo] = useState("");
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
@@ -220,6 +219,9 @@ export default function Home() {
         setStreak(0);
         setRegisteredDomain("");
         setNetworkLatency(0);
+        setIsBatchMode(false);
+        setSendAddress("");
+        setSendMemo("");
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -311,6 +313,9 @@ export default function Home() {
     setEurcBalance("0.00");
     setRegisteredDomain("");
     setNetworkLatency(0);
+    setIsBatchMode(false); // FIXED: Clear batch state on disconnect
+    setSendAddress("");
+    setSendMemo("");
     showMessage("Wallet Disconnected");
   };
 
@@ -334,17 +339,20 @@ export default function Home() {
     setShowSendModal(true);
   };
 
-  // ====== FIXED AND UPGRADED SEND LOGIC (BATCH & MEMO) ======
+  // ====== FIXED AND UPGRADED SEND LOGIC (VALIDATION & BATCH ERROR HANDLING) ======
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill required fields");
     
-    // Parse addresses for batching
-    const addresses = isBatchMode 
-      ? sendAddress.split(',').map(a => a.trim()).filter(a => ethers.isAddress(a))
-      : [sendAddress.trim()];
+    // Parse addresses
+    const rawAddresses = isBatchMode ? sendAddress.split(',') : [sendAddress];
+    const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
 
-    if (addresses.length === 0 || !ethers.isAddress(addresses[0])) {
-      return showMessage("Invalid recipient address(es)");
+    if (addresses.length === 0) return showMessage("Please enter at least one address");
+
+    // NEW: Strict Address Validation before starting transaction
+    const invalidAddresses = addresses.filter(a => !ethers.isAddress(a));
+    if (invalidAddresses.length > 0) {
+      return showMessage(`Invalid address detected: ${invalidAddresses[0]}`);
     }
 
     if (!isArcTestnet) {
@@ -360,55 +368,65 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // Encode Memo into Hex
+      // Encode Memo
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
+
+      let successCount = 0;
 
       for (let i = 0; i < addresses.length; i++) {
         const currentTarget = addresses[i];
         if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${addresses.length}...`);
         else showMessage("Confirm transaction in your wallet...");
 
-        let tx: any;
+        // NEW: Try/Catch inside the loop so one failure doesn't stop the whole batch
+        try {
+          let tx: any;
 
-        if (sendAsset === "USDC") {
-          // Native USDC Send with Memo
-          const parsedAmount = ethers.parseUnits(sendAmount, 18);
-          tx = await signer.sendTransaction({ 
-            to: currentTarget, 
-            value: parsedAmount,
-            data: memoHex // Native memo injection
-          });
-        } else {
-          // EURC (ERC20) Send with Advanced Calldata Injection for Memo
-          const parsedAmount = ethers.parseUnits(sendAmount, 6);
-          const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+          if (sendAsset === "USDC") {
+            const parsedAmount = ethers.parseUnits(sendAmount, 18);
+            tx = await signer.sendTransaction({ 
+              to: currentTarget, 
+              value: parsedAmount,
+              data: memoHex 
+            });
+          } else {
+            const parsedAmount = ethers.parseUnits(sendAmount, 6);
+            const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+            const transferData = contract.interface.encodeFunctionData("transfer", [currentTarget, parsedAmount]);
+            const finalData = memoBytes ? transferData + memoBytes : transferData;
+
+            tx = await signer.sendTransaction({
+              to: EURC_ADDRESS,
+              data: finalData
+            });
+          }
           
-          // Generate standard transfer payload
-          const transferData = contract.interface.encodeFunctionData("transfer", [currentTarget, parsedAmount]);
-          // Inject memo to the end of the calldata (ERC20 safely ignores extra data, but arc-node reads it)
-          const finalData = memoBytes ? transferData + memoBytes : transferData;
+          showMessage(`Sending ${sendAsset} to ${currentTarget.slice(0,6)}...`);
+          const receipt = await tx.wait();
+          const txHash = receipt?.hash || tx?.hash || "";
+          
+          addHistoryRecord(
+            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
+            `-${sendAmount} ${sendAsset}`, 
+            `To ${currentTarget.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
+            "Completed", 
+            txHash
+          );
+          successCount++;
 
-          tx = await signer.sendTransaction({
-            to: EURC_ADDRESS,
-            data: finalData
-          });
+        } catch (txError) {
+          console.error("Transaction Error:", txError);
+          showMessage(`Failed to send to ${currentTarget.slice(0,6)}...`);
+          addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, `Failed: ${currentTarget.slice(0,6)}...`, "Failed");
         }
-        
-        showMessage(`Sending ${sendAsset} to ${currentTarget.slice(0,6)}...`);
-        const receipt = await tx.wait();
-        const txHash = receipt?.hash || tx?.hash || "";
-        
-        addHistoryRecord(
-          isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
-          `-${sendAmount} ${sendAsset}`, 
-          `To ${currentTarget.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
-          "Completed", 
-          txHash
-        );
       }
       
-      showMessage(isBatchMode ? `Batch Transfer Complete! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+      // Final message based on success count
+      if (successCount > 0) {
+        showMessage(isBatchMode ? `Batch Complete: ${successCount} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+      }
+      
       setShowSendModal(false);
       setSendAddress("");
       setSendAmount("");
@@ -416,8 +434,7 @@ export default function Home() {
       setIsBatchMode(false);
       void fetchBalances(wallet);
     } catch (error) {
-      showMessage("Transaction failed or rejected");
-      addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, "Transaction Failed", "Failed");
+      showMessage("Operation failed or rejected");
     } finally {
       setIsSending(false);
     }
@@ -550,7 +567,7 @@ export default function Home() {
   };
 
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted my @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
@@ -629,12 +646,14 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
+      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
         </div>
       )}
 
+      {/* DOMAIN SUCCESS MODAL */}
       {showDomainSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl">
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
@@ -710,6 +729,7 @@ export default function Home() {
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
                   <span>Tx Memo</span>
+                  <span className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded-md ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-600'}`}>v0.7.2 FEATURE</span>
                 </label>
                 <input type="text" value={sendMemo} onChange={(e) => setSendMemo(e.target.value)} placeholder="Optional (e.g. Invoice #123)" className={`w-full rounded-2xl border px-5 py-3 focus:outline-none transition text-sm ${tc.inputBg}`} />
               </div>
@@ -835,7 +855,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-3">
                     <button onClick={handleOpenSendModal} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
                       <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
-                      <span className={`text-[8px] md:text-[10px] mt-1 md:mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH & MEMO ENABLED</span>
+                      <span className={`text-[8px] md:text-[10px] mt-1 md:mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH & MEMO (v0.7.2)</span>
                     </button>
                     <button onClick={copyAddress} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex items-center justify-center ${tc.actionCard}`}>
                       <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive Funds</div>
@@ -1081,9 +1101,6 @@ export default function Home() {
             <div className="flex gap-3 md:gap-4">
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
-              </a>
-              <a href="https://x.com/arc" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
