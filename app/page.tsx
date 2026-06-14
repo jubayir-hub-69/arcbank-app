@@ -31,6 +31,7 @@ export default function Home() {
   const [chainId, setChainId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "arcpass" | "history" | "learn">("overview");
   
+  // Theme State
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
@@ -313,7 +314,7 @@ export default function Home() {
     setEurcBalance("0.00");
     setRegisteredDomain("");
     setNetworkLatency(0);
-    setIsBatchMode(false); // FIXED: Clear batch state on disconnect
+    setIsBatchMode(false);
     setSendAddress("");
     setSendMemo("");
     showMessage("Wallet Disconnected");
@@ -339,17 +340,15 @@ export default function Home() {
     setShowSendModal(true);
   };
 
-  // ====== FIXED AND UPGRADED SEND LOGIC (VALIDATION & BATCH ERROR HANDLING) ======
+  // ====== FINAL BUG FIX: FAILED TRANSACTION MODAL CLOSING ISSUE ======
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill required fields");
     
-    // Parse addresses
     const rawAddresses = isBatchMode ? sendAddress.split(',') : [sendAddress];
     const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
 
     if (addresses.length === 0) return showMessage("Please enter at least one address");
 
-    // NEW: Strict Address Validation before starting transaction
     const invalidAddresses = addresses.filter(a => !ethers.isAddress(a));
     if (invalidAddresses.length > 0) {
       return showMessage(`Invalid address detected: ${invalidAddresses[0]}`);
@@ -368,7 +367,6 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // Encode Memo
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
@@ -379,7 +377,6 @@ export default function Home() {
         if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${addresses.length}...`);
         else showMessage("Confirm transaction in your wallet...");
 
-        // NEW: Try/Catch inside the loop so one failure doesn't stop the whole batch
         try {
           let tx: any;
 
@@ -422,17 +419,20 @@ export default function Home() {
         }
       }
       
-      // Final message based on success count
+      // FIX: If at least 1 success, close modal and clear form. Otherwise, keep modal open.
       if (successCount > 0) {
-        showMessage(isBatchMode ? `Batch Complete: ${successCount} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${addresses.length} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+        setShowSendModal(false);
+        setSendAddress("");
+        setSendAmount("");
+        setSendMemo("");
+        setIsBatchMode(false);
+        void fetchBalances(wallet);
+      } else {
+        // This stops the modal from closing when everything fails
+        showMessage(isBatchMode ? `Batch Failed: 0/${addresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
       }
-      
-      setShowSendModal(false);
-      setSendAddress("");
-      setSendAmount("");
-      setSendMemo("");
-      setIsBatchMode(false);
-      void fetchBalances(wallet);
+
     } catch (error) {
       showMessage("Operation failed or rejected");
     } finally {
@@ -646,14 +646,12 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
-      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
         </div>
       )}
 
-      {/* DOMAIN SUCCESS MODAL */}
       {showDomainSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl">
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
@@ -1101,6 +1099,9 @@ export default function Home() {
             <div className="flex gap-3 md:gap-4">
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              </a>
+              <a href="https://x.com/arc" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
