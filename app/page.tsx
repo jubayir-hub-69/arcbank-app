@@ -38,9 +38,10 @@ export default function Home() {
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Send Modal
+  // Send Modal (Updated for Batch & Memo Fix)
   const [showSendModal, setShowSendModal] = useState(false);
-  const [sendAddress, setSendAddress] = useState("");
+  const [isBatchMode, setIsBatchMode] = useState(false); // NEW: BATCH MODE TOGGLE
+  const [sendAddress, setSendAddress] = useState(""); // Can hold multiple addresses in batch mode
   const [sendAmount, setSendAmount] = useState("");
   const [sendMemo, setSendMemo] = useState("");
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
@@ -65,7 +66,6 @@ export default function Home() {
 
   const isArcTestnet = chainId === ARC_CHAIN_ID;
 
-  // Initialize Theme from Local Storage
   useEffect(() => {
     const savedTheme = localStorage.getItem("arcbank_theme") as "dark" | "light";
     if (savedTheme) setTheme(savedTheme);
@@ -108,7 +108,6 @@ export default function Home() {
     }
   };
 
-  // REAL NETWORK LATENCY CALCULATION
   const fetchBalances = useCallback(async (address: string, isSilentRefresh = false) => {
     if (!address) return;
     try {
@@ -174,7 +173,6 @@ export default function Home() {
       setStreak(0);
     }
     
-    // Load registered domain state globally
     const myDomain = localStorage.getItem(`arcbank_domain_name_${wallet}`);
     if (myDomain) setRegisteredDomain(myDomain);
   }, [wallet]);
@@ -336,8 +334,19 @@ export default function Home() {
     setShowSendModal(true);
   };
 
+  // ====== FIXED AND UPGRADED SEND LOGIC (BATCH & MEMO) ======
   const executeSend = async () => {
     if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill required fields");
+    
+    // Parse addresses for batching
+    const addresses = isBatchMode 
+      ? sendAddress.split(',').map(a => a.trim()).filter(a => ethers.isAddress(a))
+      : [sendAddress.trim()];
+
+    if (addresses.length === 0 || !ethers.isAddress(addresses[0])) {
+      return showMessage("Invalid recipient address(es)");
+    }
+
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
@@ -351,35 +360,60 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      showMessage("Confirm transaction in your wallet...");
-      let tx: any;
+      // Encode Memo into Hex
+      const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
+      const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
-      const txData = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
+      for (let i = 0; i < addresses.length; i++) {
+        const currentTarget = addresses[i];
+        if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${addresses.length}...`);
+        else showMessage("Confirm transaction in your wallet...");
 
-      if (sendAsset === "USDC") {
-        const parsedAmount = ethers.parseUnits(sendAmount, 18);
-        tx = await signer.sendTransaction({ 
-          to: sendAddress, 
-          value: parsedAmount,
-          data: txData 
-        });
-      } else {
-        const parsedAmount = ethers.parseUnits(sendAmount, 6);
-        const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
-        tx = await contract.transfer(sendAddress, parsedAmount);
+        let tx: any;
+
+        if (sendAsset === "USDC") {
+          // Native USDC Send with Memo
+          const parsedAmount = ethers.parseUnits(sendAmount, 18);
+          tx = await signer.sendTransaction({ 
+            to: currentTarget, 
+            value: parsedAmount,
+            data: memoHex // Native memo injection
+          });
+        } else {
+          // EURC (ERC20) Send with Advanced Calldata Injection for Memo
+          const parsedAmount = ethers.parseUnits(sendAmount, 6);
+          const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+          
+          // Generate standard transfer payload
+          const transferData = contract.interface.encodeFunctionData("transfer", [currentTarget, parsedAmount]);
+          // Inject memo to the end of the calldata (ERC20 safely ignores extra data, but arc-node reads it)
+          const finalData = memoBytes ? transferData + memoBytes : transferData;
+
+          tx = await signer.sendTransaction({
+            to: EURC_ADDRESS,
+            data: finalData
+          });
+        }
+        
+        showMessage(`Sending ${sendAsset} to ${currentTarget.slice(0,6)}...`);
+        const receipt = await tx.wait();
+        const txHash = receipt?.hash || tx?.hash || "";
+        
+        addHistoryRecord(
+          isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
+          `-${sendAmount} ${sendAsset}`, 
+          `To ${currentTarget.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
+          "Completed", 
+          txHash
+        );
       }
       
-      showMessage(`Sending ${sendAsset}... Waiting for block confirmation`);
-      const receipt = await tx.wait();
-      const txHash = receipt?.hash || tx?.hash || "";
-      
-      showMessage(`Successfully sent ${sendAmount} ${sendAsset}!`);
-      addHistoryRecord(`Transfer ${sendAsset}`, `-${sendAmount} ${sendAsset}`, `Sent to ${sendAddress.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, "Completed", txHash);
-      
+      showMessage(isBatchMode ? `Batch Transfer Complete! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
       setShowSendModal(false);
       setSendAddress("");
       setSendAmount("");
       setSendMemo("");
+      setIsBatchMode(false);
       void fetchBalances(wallet);
     } catch (error) {
       showMessage("Transaction failed or rejected");
@@ -516,7 +550,7 @@ export default function Home() {
   };
 
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Minted my @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
@@ -554,7 +588,6 @@ export default function Home() {
     }
   };
 
-  // --- Dynamic Theme Object for the ultimate Pro Polish (Fixed TypeScript Keys) ---
   const tc = theme === 'dark' ? {
     bgApp: "bg-[#020617] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(2,6,23,1))] text-white",
     navBorder: "border-white/5 bg-transparent",
@@ -596,36 +629,29 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
-      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
         </div>
       )}
 
-      {/* DOMAIN SUCCESS MODAL */}
       {showDomainSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl">
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
             <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
-            
             <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
               <img src="/arc-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
             </div>
-            
             <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
             <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered on <span className="text-cyan-400 font-bold">Arc Testnet</span>!</p>
-            
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/50 bg-cyan-500/10 px-6 py-2 mb-8">
               <span className="text-cyan-400">⚡</span>
               <span className="text-sm font-black text-cyan-400 tracking-widest uppercase">Lifetime Ownership</span>
             </div>
-
             <div className="w-full rounded-2xl border border-cyan-500/20 bg-black/50 p-5 flex justify-between items-center mb-4">
               <span className="text-xl font-black text-white">{registeredDomain}</span>
               <span className="bg-white/10 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider text-gray-300">Forever</span>
             </div>
-
             <div className="w-full rounded-2xl border border-white/5 bg-black/50 p-5 flex justify-between items-center mb-2">
               <span className="text-xs font-medium text-gray-400">Tx Hash: <span className="text-white ml-1">{registrationHash.slice(0,6)}...{registrationHash.slice(-4)}</span></span>
               <button onClick={() => window.open(`${ARC_EXPLORER}/tx/${registrationHash}`, "_blank")} className="bg-white/10 hover:bg-white/20 transition px-4 py-1.5 rounded-lg text-xs font-bold text-white flex items-center gap-1">Explorer ↗</button>
@@ -634,39 +660,56 @@ export default function Home() {
         </div>
       )}
 
-      {/* SEND MODAL WITH MEMO FIELD */}
+      {/* SEND MODAL WITH BATCH AND MEMO */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6">
               <h3 className={`text-2xl font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Send Asset</h3>
               <button onClick={() => setShowSendModal(false)} className="text-gray-400 hover:text-cyan-500 transition rounded-full p-2.5">✕</button>
             </div>
-            <div className="space-y-6">
+
+            {/* BATCH TOGGLE */}
+            <div className="flex items-center justify-between bg-black/20 p-3 rounded-2xl mb-6 border border-white/5">
+              <div className="flex flex-col">
+                <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Batch Transfer</span>
+                <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-widest">v0.7.2 FEATURE</span>
+              </div>
+              <button onClick={() => setIsBatchMode(!isBatchMode)} className={`w-12 h-6 rounded-full transition-colors relative ${isBatchMode ? 'bg-cyan-500' : 'bg-gray-600'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${isBatchMode ? 'translate-x-7' : 'translate-x-1'}`}></div>
+              </button>
+            </div>
+
+            <div className="space-y-5">
               <div>
-                <label className={`text-xs font-bold mb-2 block uppercase tracking-widest ${tc.historyText}`}>Recipient Address</label>
-                <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
+                <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
+                  <span>Recipient {isBatchMode ? "Addresses" : "Address"}</span>
+                  {isBatchMode && <span className="text-[9px] text-orange-400">Separate with comma (,)</span>}
+                </label>
+                {isBatchMode ? (
+                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., 0x2..., 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
+                ) : (
+                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
+                )}
               </div>
               <div>
                 <label className={`text-xs font-bold mb-2 block uppercase tracking-widest ${tc.historyText}`}>Select Asset</label>
                 <div className="grid grid-cols-2 gap-4">
-                  <button onClick={() => setSendAsset("USDC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "USDC" ? "border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>USDC</button>
-                  <button onClick={() => setSendAsset("EURC")} className={`rounded-2xl py-4 border-2 font-black tracking-wide transition-all ${sendAsset === "EURC" ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>EURC</button>
+                  <button onClick={() => setSendAsset("USDC")} className={`rounded-2xl py-3 border-2 font-black tracking-wide transition-all ${sendAsset === "USDC" ? "border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>USDC</button>
+                  <button onClick={() => setSendAsset("EURC")} className={`rounded-2xl py-3 border-2 font-black tracking-wide transition-all ${sendAsset === "EURC" ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>EURC</button>
                 </div>
               </div>
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
-                  <span>Amount</span>
+                  <span>Amount {isBatchMode && "(Per address)"}</span>
                   <span className="font-mono">Bal: {sendAsset === "USDC" ? usdcBalance : eurcBalance}</span>
                 </label>
                 <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition text-2xl font-black ${tc.inputBg}`} />
               </div>
               
-              {/* NEW MEMO FIELD for v0.7.2 */}
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
                   <span>Tx Memo</span>
-                  <span className="text-[9px] sm:text-[10px] bg-cyan-500/10 text-cyan-500 px-2 py-0.5 rounded-md">v0.7.2 FEATURE</span>
                 </label>
                 <input type="text" value={sendMemo} onChange={(e) => setSendMemo(e.target.value)} placeholder="Optional (e.g. Invoice #123)" className={`w-full rounded-2xl border px-5 py-3 focus:outline-none transition text-sm ${tc.inputBg}`} />
               </div>
@@ -684,12 +727,10 @@ export default function Home() {
         <div className="flex items-center gap-3 md:gap-5">
           <h1 className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md ${tc.textMain}`}>ArcBank</h1>
           
-          {/* THEME TOGGLE BUTTON (☀️ / 🌙) */}
           <button onClick={toggleTheme} className={`flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full border transition-all active:scale-90 ${theme === 'dark' ? 'border-white/20 bg-white/5 hover:bg-white/10 text-yellow-400' : 'border-slate-300 bg-white shadow-sm hover:bg-slate-50 text-indigo-900'}`}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
 
-          {/* NETWORK STATUS INDICATOR */}
           {wallet && (
             <div className={`hidden sm:flex items-center gap-2 rounded-full border px-3 py-1.5 backdrop-blur-md ${theme === 'dark' ? 'border-white/5 bg-black/30' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className={`w-2 h-2 rounded-full ${isArcTestnet ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'} animate-pulse`}></div>
@@ -751,7 +792,6 @@ export default function Home() {
             <div className="space-y-6 md:space-y-8">
               {selectedTab === "overview" && (
                 <>
-                  {/* BALANCES GRID & GM CHECK-IN */}
                   <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2">
                       <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
@@ -767,7 +807,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* DAILY GM CHECK-IN CARD */}
                     <div className={`rounded-3xl md:rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b p-6 md:p-8 shadow-xl flex flex-col justify-center items-center text-center relative overflow-hidden group ${theme === 'dark' ? 'from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'from-orange-50 to-white text-slate-900'}`}>
                       <div className="absolute -top-4 -right-4 md:-top-6 md:-right-6 p-4 opacity-10 text-6xl md:text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
                       
@@ -793,11 +832,10 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-3">
                     <button onClick={handleOpenSendModal} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
                       <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
-                      <span className={`text-[8px] md:text-[10px] mt-1 md:mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>WITH MEMO (v0.7.2)</span>
+                      <span className={`text-[8px] md:text-[10px] mt-1 md:mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH & MEMO ENABLED</span>
                     </button>
                     <button onClick={copyAddress} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex items-center justify-center ${tc.actionCard}`}>
                       <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive Funds</div>
@@ -878,7 +916,6 @@ export default function Home() {
                         <p className={`text-xs md:text-sm font-bold mt-1 md:mt-2 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Verified on Arc Blockchain</p>
                       </div>
 
-                      {/* THE ARC PASS CARD (ALWAYS HARDCODED TO DARK VIP LOOK FOR DOWNLOAD) */}
                       <div id="arc-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
                         
                         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
@@ -920,7 +957,6 @@ export default function Home() {
                         </div>
                       </div>
                       
-                      {/* ACTION BUTTONS */}
                       <div className="mt-8 md:mt-10 flex flex-wrap justify-center gap-3 md:gap-4">
                         <button onClick={downloadArcPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
                           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
