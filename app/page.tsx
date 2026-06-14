@@ -121,7 +121,7 @@ export default function Home() {
         rpcProvider.getBalance(address),
         eurcContract.balanceOf(address)
       ]);
-      setNetworkLatency(Date.now() - start); // 100% Real Time Latency Measurement
+      setNetworkLatency(Date.now() - start);
 
       setUsdcBalance(Number(ethers.formatUnits(nativeUsdcRaw, 18)).toFixed(2));
       setEurcBalance(Number(ethers.formatUnits(eurcRaw, 6)).toFixed(2));
@@ -498,7 +498,7 @@ export default function Home() {
       setRegistrationHash(txHash);
       
       localStorage.setItem(`arcbank_last_domain_${wallet}`, new Date().toISOString());
-      localStorage.setItem(`arcbank_domain_name_${wallet}`, newDomain); // Save domain globally
+      localStorage.setItem(`arcbank_domain_name_${wallet}`, newDomain);
 
       addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
       
@@ -554,12 +554,15 @@ export default function Home() {
     }
   };
 
-  // --- Dynamic Theme Object for the ultimate Pro Polish ---
+  // --- Dynamic Theme Object for the ultimate Pro Polish (Fixed TypeScript Keys) ---
   const tc = theme === 'dark' ? {
     bgApp: "bg-[#020617] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(2,6,23,1))] text-white",
     navBorder: "border-white/5 bg-transparent",
     textWelcome: "from-white via-cyan-100 to-cyan-500",
     textDesc: "text-cyan-100/70",
+    textMain: "text-white",
+    textMuted: "text-gray-400",
+    solidCardBg: "bg-white/[0.02] border-white/10 backdrop-blur-3xl shadow-2xl",
     sidebarActive: "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)]",
     sidebarInactive: "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white",
     cardBg: "border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent shadow-2xl text-white hover:border-white/20",
@@ -575,6 +578,9 @@ export default function Home() {
     navBorder: "border-slate-200 bg-white/60",
     textWelcome: "from-slate-900 via-cyan-700 to-cyan-500",
     textDesc: "text-slate-600",
+    textMain: "text-slate-900",
+    textMuted: "text-slate-500",
+    solidCardBg: "bg-white border-slate-200 shadow-xl",
     sidebarActive: "bg-cyan-50 text-cyan-700 border-cyan-200 shadow-sm",
     sidebarInactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-800",
     cardBg: "border-slate-200 bg-white shadow-xl text-slate-900 hover:border-slate-300",
@@ -588,7 +594,7 @@ export default function Home() {
   };
 
   return (
-    <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 ${tc.bgApp}`}>
+    <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
       {/* TOAST NOTIFICATION */}
       {message && (
@@ -937,7 +943,7 @@ export default function Home() {
                 <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 animate-in fade-in duration-500 ${tc.solidCardBg}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
                     <div>
-                      <h2 className="text-2xl md:text-3xl font-black tracking-tight">Transaction History</h2>
+                      <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${tc.textMain}`}>Transaction History</h2>
                       <p className={`text-xs md:text-sm font-semibold mt-1 md:mt-2 ${tc.textMuted}`}>Real verifiable blockchain events</p>
                     </div>
                     <button onClick={openExplorer} className={`rounded-full border px-6 py-2.5 md:px-8 md:py-3 text-xs md:text-sm font-black tracking-wide transition-all active:scale-95 w-full sm:w-auto shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black text-white' : 'bg-slate-100 border-slate-200 hover:bg-slate-900 hover:text-white text-slate-800'}`}>
@@ -959,7 +965,7 @@ export default function Home() {
                               {item.status === "Completed" ? "✓" : item.status === "Failed" ? "✕" : "⏳"}
                             </div>
                             <div>
-                              <div className="font-black text-lg md:text-xl tracking-tight leading-tight">{item.label}</div>
+                              <div className={`font-black text-lg md:text-xl tracking-tight leading-tight ${tc.textMain}`}>{item.label}</div>
                               {item.txHash ? (
                                 <a href={`${ARC_EXPLORER}/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className={`mt-1 md:mt-1.5 text-xs md:text-sm font-bold underline underline-offset-4 flex items-center gap-1 md:gap-1.5 transition-colors ${theme === 'dark' ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-500'}`}>
                                   <span className="truncate max-w-[150px] sm:max-w-none">{item.meta}</span> <span className="text-[10px] md:text-xs flex-shrink-0">↗</span>
