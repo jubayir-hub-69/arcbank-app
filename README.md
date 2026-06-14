@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏦 ArcBank | Enterprise Web3 Stablecoin Management
 
-## Getting Started
+ArcBank is a modern, high-performance decentralized application (dApp) built natively on the **Arc L1 Network**. Designed for seamless stablecoin operations, it leverages native USDC gas mechanics and Web3 identity protocols to provide a frictionless, enterprise-grade banking experience on the blockchain.
 
-First, run the development server:
+## ✨ Key Features
 
+* **Real-time Stablecoin Vault:** Securely track and manage balances for natively issued assets like USDC (Native Gas) and EURC.
+* **Zero-Value GM Protocol:** An on-chain streak system where users execute 0-value daily transactions to verify activity and build an immutable on-chain footprint.
+* **ARC Name Service (.arc):** A fully functional decentralized domain registration system integrated directly into the dashboard.
+* **Dynamic Web3 Identity (Arc Pass):** Automatically generates a downloadable, high-resolution holographic digital ID card bound to the user's `.arc` domain and wallet address.
+* **Secure Asset Routing:** Enterprise-grade direct transfers interacting directly with Arc Network smart contracts via `ethers.js`.
+
+## 🛠️ Tech Stack & Architecture
+
+* **Framework:** Next.js 14 (React)
+* **Web3 Integration:** ethers.js (v6)
+* **Styling & UI:** Tailwind CSS, Custom Glassmorphism, CSS Animations
+* **Image Generation:** html2canvas (Client-side dynamic rendering)
+* **Network:** Arc L1 Testnet (Chain ID: `5042002`)
+* **Deployment:** Vercel
+
+## ⚙️ Smart Contract Addresses (Arc Testnet)
+
+* **USDC (Native Gas):** Core Network Implementation
+* **EURC Token Contract:** `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
+* **Network RPC:** `https://rpc.testnet.arc.network`
+
+## 🚀 Getting Started
+
+If you want to run this project locally, follow these steps:
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+git clone [https://github.com/jubayir-hub-69/arcbank-app.git](https://github.com/jubayir-hub-69/arcbank-app.git)
