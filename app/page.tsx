@@ -35,10 +35,11 @@ export default function Home() {
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Send Modal
+  // Send Modal (Updated for v0.7.2 Memo)
   const [showSendModal, setShowSendModal] = useState(false);
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
+  const [sendMemo, setSendMemo] = useState(""); // NEW MEMO FIELD
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
@@ -312,7 +313,7 @@ export default function Home() {
   };
 
   const executeSend = async () => {
-    if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill all fields");
+    if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill required fields");
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
@@ -329,13 +330,21 @@ export default function Home() {
       showMessage("Confirm transaction in your wallet...");
       let tx: any;
 
+      // Formatting data for transaction memo (v0.7.2 compatibility prep)
+      const txData = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
+
       if (sendAsset === "USDC") {
         const parsedAmount = ethers.parseUnits(sendAmount, 18);
-        tx = await signer.sendTransaction({ to: sendAddress, value: parsedAmount });
+        tx = await signer.sendTransaction({ 
+          to: sendAddress, 
+          value: parsedAmount,
+          data: txData // Attaching Memo
+        });
       } else {
         const parsedAmount = ethers.parseUnits(sendAmount, 6);
         const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
         tx = await contract.transfer(sendAddress, parsedAmount);
+        // Note: Contract transfers require specific ABIs for memo injection, keeping standard transfer for now
       }
       
       showMessage(`Sending ${sendAsset}... Waiting for block confirmation`);
@@ -343,11 +352,12 @@ export default function Home() {
       const txHash = receipt?.hash || tx?.hash || "";
       
       showMessage(`Successfully sent ${sendAmount} ${sendAsset}!`);
-      addHistoryRecord(`Transfer ${sendAsset}`, `-${sendAmount} ${sendAsset}`, `Sent to ${sendAddress.slice(0,6)}...`, "Completed", txHash);
+      addHistoryRecord(`Transfer ${sendAsset}`, `-${sendAmount} ${sendAsset}`, `Sent to ${sendAddress.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, "Completed", txHash);
       
       setShowSendModal(false);
       setSendAddress("");
       setSendAmount("");
+      setSendMemo("");
       void fetchBalances(wallet);
     } catch (error) {
       showMessage("Transaction failed or rejected");
@@ -474,7 +484,7 @@ export default function Home() {
       addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
-      triggerConfetti(); // TRIGER RING CONFETTI ANIMATION
+      triggerConfetti();
 
       setDomainSearch("");
       setDomainAvailable(false);
@@ -486,7 +496,6 @@ export default function Home() {
     }
   };
 
-  // SHARE TO X LOGIC (Custom text as requested)
   const shareOnX = () => {
     const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
@@ -499,32 +508,30 @@ export default function Home() {
     const element = document.getElementById("arc-pass-card");
     if (!element) return;
 
-    const runCanvas = () => {
-      (window as any).html2canvas(element, { 
-        backgroundColor: "#050B14", // Solid color avoids blur rendering issues
-        scale: 3, 
-        useCORS: true,
-        allowTaint: true 
-      }).then((canvas: HTMLCanvasElement) => {
-        const link = document.createElement('a');
-        link.download = `${registeredDomain || 'arc'}-pass.png`;
-        link.href = canvas.toDataURL('image/png', 1.0);
-        document.body.appendChild(link); // Required for mobile browsers to allow download
-        link.click();
-        document.body.removeChild(link);
-        showMessage("Arc Pass saved to your device! 📸");
-      }).catch((err: any) => {
-        console.error("Canvas Error:", err);
-        showMessage("Failed to generate image.");
-      });
+    // Use dom-to-image library for better stability over html2canvas on mobile/Vercel
+    const runImageGenerator = () => {
+      (window as any).domtoimage.toPng(element, { quality: 1, bgcolor: '#050B14', scale: 3 })
+        .then((dataUrl: string) => {
+          const link = document.createElement('a');
+          link.download = `${registeredDomain || 'arc'}-pass.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showMessage("Arc Pass saved to your device! 📸");
+        })
+        .catch((err: any) => {
+          console.error("Image Generation Error:", err);
+          showMessage("Failed to generate image.");
+        });
     };
 
-    if ((window as any).html2canvas) {
-      runCanvas();
+    if ((window as any).domtoimage) {
+      runImageGenerator();
     } else {
       const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      script.onload = runCanvas;
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js";
+      script.onload = runImageGenerator;
       script.onerror = () => showMessage("Could not load image generator.");
       document.body.appendChild(script);
     }
@@ -546,7 +553,6 @@ export default function Home() {
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
             <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
             
-            {/* ARC LOGO IMAGE */}
             <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
               <img src="/arc-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
             </div>
@@ -572,7 +578,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* SEND MODAL */}
+      {/* SEND MODAL WITH MEMO FIELD */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
           <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#0A1A3F] p-8 shadow-2xl backdrop-blur-2xl">
@@ -599,6 +605,16 @@ export default function Home() {
                 </label>
                 <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} placeholder="0.00" className="w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-4 text-white focus:border-cyan-500 focus:outline-none transition text-2xl font-black" />
               </div>
+              
+              {/* NEW MEMO FIELD for v0.7.2 */}
+              <div>
+                <label className="text-xs font-bold text-gray-400 mb-2 flex justify-between uppercase tracking-widest">
+                  <span>Tx Memo</span>
+                  <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-md">v0.7.2 FEATURE</span>
+                </label>
+                <input type="text" value={sendMemo} onChange={(e) => setSendMemo(e.target.value)} placeholder="Optional (e.g. Invoice #123)" className="w-full rounded-2xl border border-white/10 bg-black/50 px-5 py-3 text-white focus:border-cyan-500 focus:outline-none transition text-sm" />
+              </div>
+
               <button onClick={executeSend} disabled={isSending || !sendAddress || !sendAmount} className="w-full rounded-2xl bg-white text-black hover:bg-gray-200 py-4 font-black text-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 mt-2 shadow-xl">
                 {isSending ? "Processing..." : `Send ${sendAsset}`}
               </button>
@@ -708,10 +724,11 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW - CLEAN TEXT ONLY */}
+                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
+                    <button onClick={handleOpenSendModal} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex flex-col items-center justify-center">
                       <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
+                      <span className="text-[10px] text-cyan-500 mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">WITH MEMO (v0.7.2)</span>
                     </button>
                     <button onClick={copyAddress} className="group rounded-[2.5rem] border border-white/5 bg-[#0A1A3F]/30 backdrop-blur-xl p-10 text-center transition-all hover:bg-white/10 hover:border-white/20 hover:-translate-y-2 shadow-lg flex items-center justify-center">
                       <div className="text-2xl font-black text-white group-hover:scale-105 transition-transform tracking-wide">Receive Funds</div>
@@ -889,7 +906,6 @@ export default function Home() {
                           </div>
                           
                           <div className="sm:text-right pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
-                            {/* Empty amount from GM check-in will completely hide this section */}
                             {item.amount && (
                               <div className={`font-black text-2xl tracking-tighter ${item.amount.startsWith("+") ? "text-emerald-400" : item.amount.startsWith("-") ? "text-white" : "text-gray-400"}`}>
                                 {item.amount}
@@ -958,6 +974,9 @@ export default function Home() {
             <div className="flex gap-4">
               <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              </a>
+              <a href="https://x.com/arc" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
               <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition-all p-3 border border-white/5 bg-white/5 rounded-full hover:bg-white/10 hover:scale-110">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
