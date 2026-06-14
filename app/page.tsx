@@ -759,7 +759,8 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-2 md:gap-4">
-          {wallet {wallet ? (
+          {/* FIX HERE: Line 762 - Syntax error fixed */}
+          {wallet ? (
             <>
               <div className={`hidden md:block rounded-full border px-6 py-2.5 font-bold tracking-wider backdrop-blur-md shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
               <button type="button" onClick={disconnectWallet} className="rounded-full bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 md:px-6 md:py-2.5 text-[10px] md:text-sm transition-all hover:bg-red-500 hover:text-white font-bold backdrop-blur-md hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]">Disconnect</button>
@@ -809,7 +810,6 @@ export default function Home() {
             <div className="space-y-6 md:space-y-8">
               {selectedTab === "overview" && (
                 <>
-                  {/* BALANCES GRID & GM CHECK-IN */}
                   <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2">
                       <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
@@ -825,7 +825,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* DAILY GM CHECK-IN CARD */}
                     <div className={`rounded-3xl md:rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b p-6 md:p-8 shadow-xl flex flex-col justify-center items-center text-center relative overflow-hidden group ${theme === 'dark' ? 'from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'from-orange-50 to-white text-slate-900'}`}>
                       <div className="absolute -top-4 -right-4 md:-top-6 md:-right-6 p-4 opacity-10 text-6xl md:text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
                       
@@ -851,7 +850,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* QUICK ACTIONS ROW */}
                   <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-3">
                     <button onClick={handleOpenSendModal} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
                       <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
@@ -894,7 +892,7 @@ export default function Home() {
                   {domainAvailable && (
                     <div className={`mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-between p-5 md:p-6 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 ${theme === 'dark' ? 'bg-cyan-950/30 border border-cyan-500/30' : 'bg-cyan-50 border border-cyan-200'}`}>
                       <div className="flex items-center gap-4 md:gap-5">
-                        <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border border-cyan-200 shadow-sm'}`}>
+                        <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border ==border-cyan-200 shadow-sm'}`}>
                           <img src="/arc-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
                         </div>
                         <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arc</div>
@@ -936,7 +934,6 @@ export default function Home() {
                         <p className={`text-xs md:text-sm font-bold mt-1 md:mt-2 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Verified on Arc Blockchain</p>
                       </div>
 
-                      {/* THE ARC PASS CARD (ALWAYS HARDCODED TO DARK VIP LOOK FOR DOWNLOAD) */}
                       <div id="arc-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
                         
                         <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
@@ -978,7 +975,6 @@ export default function Home() {
                         </div>
                       </div>
                       
-                      {/* ACTION BUTTONS */}
                       <div className="mt-8 md:mt-10 flex flex-wrap justify-center gap-3 md:gap-4">
                         <button onClick={downloadArcPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
                           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
