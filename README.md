@@ -1,45 +1,51 @@
 # 🏦 ArcBank | Enterprise Web3 Stablecoin Management
 
-**ArcBank** is a production-ready, high-performance decentralized application (dApp) engineered natively for the **Arc L1 Network**. Designed to streamline stablecoin operations, it abstracts complex blockchain interactions into a seamless, enterprise-grade banking interface. 
+**ArcBank** is a production-ready, high-performance decentralized application (dApp) built natively for the **Arc L1 Network**. It bridges the gap between complex blockchain infrastructure and enterprise-grade user experience. 
 
-This project is built to demonstrate how robust infrastructure, decentralized identity, and fiat-backed assets can seamlessly merge on the Arc ecosystem.
+This project was built to address real-world challenges in stablecoin operations, transaction efficiency, and on-chain identity, incorporating the latest protocol upgrades (v0.7.2).
 
 ---
 
-## 🚀 Core Architecture & Features
+## 🏗️ Engineering Highlights & Bug Resolution
 
-* **⚡ Native v0.7.2 Hardfork Integration:** Fully optimized for Arc's latest network upgrade. It features advanced **Batch Transactions** with a fail-safe execution loop (preventing a single failure from halting the entire batch) and native **Transaction Memos** implemented via low-level EVM calldata injection.
-* **🌐 ARC Name Service (.arc):** A decentralized naming protocol built directly into the dashboard, allowing users to register and secure their permanent on-chain identity via a seamless UI.
-* **🪪 Dynamic Cryptographic Identity (Arc Pass):** A client-side rendering protocol that dynamically generates a high-resolution, downloadable holographic digital ID card bound to the user's `.arc` domain and wallet address.
-* **🔥 Zero-Value GM Protocol:** An on-chain streak tracking mechanism utilizing zero-value smart contract transactions to foster daily network participation and build immutable user footprints.
-* **📡 Real-Time Network Telemetry:** Integrated RPC ping tracking to monitor and display live network latency in milliseconds, ensuring enterprise-tier transparency.
-* **🌗 Adaptive Enterprise UI/UX:** Built with Next.js 14, featuring a highly responsive, state-persistent Light/Dark mode architecture with custom glassmorphism components.
+As a developer, I focused on building an application that is not only functional but also resilient. Key architectural challenges addressed during development include:
+
+*   **Fail-Safe Batch Transactions:** Implemented a robust `try/catch` loop for batch transfers. Unlike standard implementations that halt on a single error, ArcBank isolates transaction failures, allowing the remaining queue to execute successfully.
+*   **EVM Calldata Memo Injection:** Solved the cross-contract memo compatibility issue by performing low-level EVM calldata manipulation. This ensures that memos are correctly attached even when interacting with external ERC20 contracts.
+*   **Strict Address Validation:** Integrated real-time validator logic to prevent transaction reverts. The system detects invalid addresses (e.g., typos, invalid formatting) client-side before submission, saving gas and user frustration.
+*   **Persistent State Management:** Implemented clean-up protocols for `disconnectWallet` to ensure batch modes, cached addresses, and memos are purged, maintaining high security and session integrity.
+*   **Real-Time Network Telemetry:** Built a custom latency monitor that measures RPC response times in milliseconds, providing enterprise-grade transparency into network performance.
+
+---
+
+## 🚀 Core Features
+
+*   **v0.7.2 Native Batching & Memo Support:** Execute multiple transfers in a single UI flow with optional payment metadata.
+*   **ARC Name Service (.arc):** Decentralized identity registration built directly into the dashboard.
+*   **Holographic Arc Pass:** An exclusive, client-side rendered digital identity card. It utilizes advanced `dom-to-image` protocols to generate high-resolution cards locally, allowing users to save their identity directly to their devices.
+*   **On-Chain GM Streak Protocol:** A gamified engagement tool utilizing zero-value transactions to track and reward daily protocol usage.
+*   **Adaptive UI/UX:** A high-performance, responsive interface optimized for both mobile and desktop, featuring persistent dark/light mode themes.
 
 ---
 
 ## 🛠️ Technical Stack
 
-* **Frontend Framework:** Next.js 14 (App Router, React)
-* **Web3 Integration:** ethers.js (v6) *(Used for raw contract interaction, payload generation, and calldata manipulation)*
-* **Styling & Animation:** Tailwind CSS, Canvas Confetti
-* **Client-side Rendering:** dom-to-image *(For Arc Pass generation)*
-* **Network Integration:** Arc L1 Testnet (Chain ID: `5042002`)
+*   **Frontend:** Next.js 14 (App Router), Tailwind CSS
+*   **Blockchain Layer:** ethers.js (v6) *(Advanced calldata manipulation & provider interaction)*
+*   **State Management:** React Hooks, LocalStorage API (for session & theme persistence)
+*   **Rendering:** dom-to-image *(For pass generation)*
+*   **Build Pipeline:** TurboPack *(Enterprise-grade optimization)*
 
 ---
 
-## ⚙️ Smart Contract Addresses & Endpoints
+## 🔗 Connect & Build
 
-* **Native Gas Asset:** USDC (Core Network Implementation)
-* **EURC Token Contract:** `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
-* **Network RPC:** `https://rpc.testnet.arc.network`
-* **Block Explorer:** `https://testnet.arcscan.app`
+This dApp is a showcase of high-performance Web3 development on the Arc L1 ecosystem.
 
----
+**Built by [JUBAYIR69](https://x.com/jubayirhaider90)**  
+* 𝕏 (Twitter): [@jubayirhaider90](https://x.com/jubayirhaider90)  
+* GitHub: [jubayir-hub-69](https://github.com/jubayir-hub-69)
+* LinkedIn: [Jubayir Haider](https://www.linkedin.com/in/jubayir-haider-302aab372)
 
-## 💻 Local Development Setup
-
-To run this project locally and explore the architecture:
-
-1. Clone the repository:
-```bash
-git clone [https://github.com/jubayir-hub-69/arcbank-app.git](https://github.com/jubayir-hub-69/arcbank-app.git)
+> *"Engineering the financial layer of tomorrow, today on Arc."*
+> 
