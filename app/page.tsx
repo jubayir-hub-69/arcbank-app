@@ -47,6 +47,12 @@ export default function Home() {
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
+  // NEW: Request Payment Modal States
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestAmount, setRequestAmount] = useState("");
+  const [requestAsset, setRequestAsset] = useState<"USDC" | "EURC">("USDC");
+  const [paymentLink, setPaymentLink] = useState("");
+
   // Daily GM
   const [streak, setStreak] = useState(0);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
@@ -65,6 +71,32 @@ export default function Home() {
   const [networkLatency, setNetworkLatency] = useState(0);
 
   const isArcTestnet = chainId === ARC_CHAIN_ID;
+
+  // NEW LOGIC: URL Parameter Parsing for Payment Request Links
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const to = params.get("to");
+      const amount = params.get("amount");
+      const token = params.get("token");
+
+      if (to && amount) {
+        setSendAddress(to);
+        setSendAmount(amount);
+        if (token === "EURC") setSendAsset("EURC");
+        else setSendAsset("USDC");
+        
+        setShowSendModal(true);
+        
+        setTimeout(() => {
+          showMessage(`Payment Request Received: ${amount} ${token || "USDC"}`);
+        }, 1500);
+
+        // Clean up the URL so it looks neat after loading
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("arcbank_theme") as "dark" | "light";
@@ -340,8 +372,33 @@ export default function Home() {
     setShowSendModal(true);
   };
 
+  // NEW LOGIC: Request Payment functions
+  const handleOpenRequestModal = () => {
+    if (!wallet) return showMessage("Please connect wallet first");
+    setPaymentLink("");
+    setRequestAmount("");
+    setShowRequestModal(true);
+  };
+
+  const generatePaymentLink = () => {
+    if (!requestAmount) return showMessage("Enter an amount");
+    if (parseFloat(requestAmount) <= 0) return showMessage("Invalid amount");
+    
+    const baseUrl = window.location.origin + window.location.pathname;
+    const link = `${baseUrl}?to=${wallet}&amount=${requestAmount}&token=${requestAsset}`;
+    setPaymentLink(link);
+    showMessage("Payment link generated!");
+  };
+
+  const copyPaymentLink = async () => {
+    if (!paymentLink) return;
+    await navigator.clipboard.writeText(paymentLink);
+    showMessage("Link copied to clipboard! 📋");
+  };
+
   const executeSend = async () => {
-    if (!wallet || !sendAddress || !sendAmount) return showMessage("Please fill required fields");
+    if (!wallet) return showMessage("Please connect wallet first to send");
+    if (!sendAddress || !sendAmount) return showMessage("Please fill required fields");
     
     const rawAddresses = isBatchMode ? sendAddress.split(',') : [sendAddress];
     const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
@@ -676,6 +733,50 @@ export default function Home() {
         </div>
       )}
 
+      {/* NEW: REQUEST PAYMENT MODAL */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-2xl font-black tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Request Payment</h3>
+              <button onClick={() => setShowRequestModal(false)} className="text-gray-400 hover:text-cyan-500 transition rounded-full p-2.5">✕</button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className={`text-xs font-bold mb-2 block uppercase tracking-widest ${tc.historyText}`}>Select Asset to Receive</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button onClick={() => setRequestAsset("USDC")} className={`rounded-2xl py-3 border-2 font-black tracking-wide transition-all ${requestAsset === "USDC" ? "border-cyan-500 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>USDC</button>
+                  <button onClick={() => setRequestAsset("EURC")} className={`rounded-2xl py-3 border-2 font-black tracking-wide transition-all ${requestAsset === "EURC" ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-transparent bg-slate-100 dark:bg-black/50 text-gray-500"}`}>EURC</button>
+                </div>
+              </div>
+
+              <div>
+                <label className={`text-xs font-bold mb-2 block uppercase tracking-widest ${tc.historyText}`}>Requested Amount</label>
+                <input type="number" value={requestAmount} onChange={(e) => setRequestAmount(e.target.value)} placeholder="0.00" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition text-2xl font-black ${tc.inputBg}`} />
+              </div>
+
+              {!paymentLink ? (
+                <button onClick={generatePaymentLink} disabled={!requestAmount} className="w-full rounded-2xl bg-cyan-500 text-white hover:bg-cyan-400 py-4 font-black text-lg transition-all active:scale-95 disabled:opacity-50 mt-2 shadow-xl">
+                  Generate Link
+                </button>
+              ) : (
+                <div className="mt-4 p-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="text-xs font-bold text-cyan-500 uppercase tracking-widest">Share this unique link:</div>
+                  <div className="text-xs font-mono break-all text-gray-300 bg-black/50 p-3 rounded-xl border border-white/5">
+                    {paymentLink}
+                  </div>
+                  <button onClick={copyPaymentLink} className="w-full rounded-xl bg-white text-black hover:bg-gray-200 py-3 font-black transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    Copy Link
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SEND MODAL WITH BATCH AND MEMO */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -759,12 +860,11 @@ export default function Home() {
         </div>
         
         <div className="flex items-center gap-2 md:gap-4">
-          {/* FIX HERE: Line 762 - Syntax error fixed */}
           {wallet ? (
             <>
               <div className={`hidden md:block rounded-full border px-6 py-2.5 font-bold tracking-wider backdrop-blur-md shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
               <button type="button" onClick={disconnectWallet} className="rounded-full bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 md:px-6 md:py-2.5 text-[10px] md:text-sm transition-all hover:bg-red-500 hover:text-white font-bold backdrop-blur-md hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]">Disconnect</button>
-            </    >
+            </>
           ) : (
             <button type="button" onClick={connectWallet} className={`rounded-full px-4 py-2 sm:px-6 sm:py-2.5 md:px-8 md:py-2.5 text-xs sm:text-sm md:text-base transition-all hover:scale-105 active:scale-95 font-black shadow-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>Connect Wallet</button>
           )}
@@ -796,7 +896,6 @@ export default function Home() {
               </button>
               <button onClick={() => setSelectedTab("arcpass")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left flex justify-between items-center font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "arcpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
                 <span>Arc Pass</span>
-                <span className={`text-[10px] md:text-xs px-2 py-1 rounded-lg ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>NEW</span>
               </button>
               <button onClick={() => setSelectedTab("history")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "history" ? tc.sidebarActive : tc.sidebarInactive}`}>
                 History
@@ -850,16 +949,27 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:gap-6 sm:grid-cols-3">
-                    <button onClick={handleOpenSendModal} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Send Assets</div>
-                      <span className={`text-[8px] md:text-[10px] mt-1 md:mt-2 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH & MEMO (v0.7.2)</span>
+                  {/* ACTION GRID - UPDATED FOR REQUEST BUTTON */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
+                    <button onClick={handleOpenSendModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Send</div>
+                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH (v0.7.2)</span>
                     </button>
-                    <button onClick={copyAddress} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive Funds</div>
+                    
+                    <button onClick={handleOpenRequestModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center relative ${tc.actionCard}`}>
+                      <div className="absolute top-2 right-2 md:top-4 md:right-4 w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Request</div>
+                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>PAYMENT LINK</span>
                     </button>
-                    <button onClick={openFaucet} className={`group rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-center transition-all md:hover:-translate-y-2 flex items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-xl md:text-2xl font-black group-hover:scale-105 transition-transform tracking-wide">Get Tokens</div>
+
+                    <button onClick={copyAddress} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive</div>
+                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>COPY ADDRESS</span>
+                    </button>
+
+                    <button onClick={openFaucet} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Faucet</div>
+                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>FREE TESTNET</span>
                     </button>
                   </div>
                 </>
