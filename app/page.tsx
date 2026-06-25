@@ -31,6 +31,9 @@ export default function Home() {
   const [chainId, setChainId] = useState<number | null>(null);
   const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "arcpass" | "history" | "learn">("overview");
   
+  // NEW: Sidebar/Drawer State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // Theme State
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -47,7 +50,7 @@ export default function Home() {
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
-  // NEW: Request Payment Modal States
+  // Request Payment Modal States
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestAsset, setRequestAsset] = useState<"USDC" | "EURC">("USDC");
@@ -59,7 +62,7 @@ export default function Home() {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // ARC Domains Feature
+  // ARC Domains
   const [domainSearch, setDomainSearch] = useState("");
   const [domainAvailable, setDomainAvailable] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -72,7 +75,7 @@ export default function Home() {
 
   const isArcTestnet = chainId === ARC_CHAIN_ID;
 
-  // NEW LOGIC: URL Parameter Parsing for Payment Request Links
+  // URL Parameter Parsing for Payment Request Links
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -92,7 +95,6 @@ export default function Home() {
           showMessage(`Payment Request Received: ${amount} ${token || "USDC"}`);
         }, 1500);
 
-        // Clean up the URL so it looks neat after loading
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
@@ -121,9 +123,24 @@ export default function Home() {
     window.setTimeout(() => setMessage(""), 4000);
   };
 
+  // ====== FIXED MULTI-WALLET RESOLVER ======
   const getEthereum = () => {
     if (typeof window === "undefined") return null;
-    return (window as any).ethereum ?? null;
+    const eth = (window as any).ethereum;
+    if (!eth) return null;
+
+    // Detect if multiple wallets are injecting into the browser (e.g., Phantom + MetaMask)
+    if (eth.providers && eth.providers.length > 0) {
+      // Forcefully prioritize Rabby or MetaMask over Phantom
+      const rabby = eth.providers.find((p: any) => p.isRabby);
+      if (rabby) return rabby;
+      
+      const metaMask = eth.providers.find((p: any) => p.isMetaMask && !p.isPhantom);
+      if (metaMask) return metaMask;
+      
+      return eth.providers[0]; // Fallback
+    }
+    return eth;
   };
 
   const syncNetwork = async () => {
@@ -312,7 +329,7 @@ export default function Home() {
   const connectWallet = async () => {
     try {
       const ethereum = getEthereum();
-      if (!ethereum) return showMessage("Install Rabby or MetaMask");
+      if (!ethereum) return showMessage("Install Rabby or MetaMask extension properly");
       
       const provider = new ethers.BrowserProvider(ethereum);
       const accounts = await provider.send("eth_requestAccounts", []);
@@ -334,8 +351,8 @@ export default function Home() {
       }
       
       void fetchBalances(accounts[0]);
-    } catch {
-      showMessage("Connection Rejected");
+    } catch (error) {
+      showMessage("Connection Rejected or Wallet Blocked");
     }
   };
 
@@ -372,7 +389,6 @@ export default function Home() {
     setShowSendModal(true);
   };
 
-  // NEW LOGIC: Request Payment functions
   const handleOpenRequestModal = () => {
     if (!wallet) return showMessage("Please connect wallet first");
     setPaymentLink("");
@@ -659,6 +675,12 @@ export default function Home() {
     }
   };
 
+  // Switch tabs and close sidebar logic
+  const handleTabSwitch = (tab: any) => {
+    setSelectedTab(tab);
+    setIsSidebarOpen(false);
+  };
+
   const tc = theme === 'dark' ? {
     bgApp: "bg-[#020617] bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(2,6,23,1))] text-white",
     navBorder: "border-white/5 bg-transparent",
@@ -668,7 +690,8 @@ export default function Home() {
     textMuted: "text-gray-400",
     solidCardBg: "bg-white/[0.02] border-white/10 backdrop-blur-3xl shadow-2xl",
     sidebarActive: "bg-white/10 text-white border-white/20 shadow-[0_0_30px_rgba(6,182,212,0.15)]",
-    sidebarInactive: "bg-white/[0.02] text-gray-500 border-white/5 hover:bg-white/5 hover:text-white",
+    sidebarInactive: "bg-transparent text-gray-500 hover:bg-white/5 hover:text-white",
+    drawerBg: "bg-[#050B14] border-white/10",
     cardBg: "border-white/10 bg-gradient-to-b from-[#0A1A3F]/50 to-transparent shadow-2xl text-white hover:border-white/20",
     actionCard: "border-white/5 bg-[#0A1A3F]/30 shadow-lg text-white hover:bg-white/10 hover:border-white/20",
     modalBg: "border-white/10 bg-[#0A1A3F] shadow-2xl text-white",
@@ -686,7 +709,8 @@ export default function Home() {
     textMuted: "text-slate-500",
     solidCardBg: "bg-white border-slate-200 shadow-xl",
     sidebarActive: "bg-cyan-50 text-cyan-700 border-cyan-200 shadow-sm",
-    sidebarInactive: "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-800",
+    sidebarInactive: "bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800",
+    drawerBg: "bg-white border-slate-200",
     cardBg: "border-slate-200 bg-white shadow-xl text-slate-900 hover:border-slate-300",
     actionCard: "border-slate-200 bg-white shadow-md text-slate-900 hover:bg-slate-50 hover:border-slate-300",
     modalBg: "border-slate-200 bg-white shadow-2xl text-slate-900",
@@ -700,7 +724,6 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
-      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
@@ -733,7 +756,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* NEW: REQUEST PAYMENT MODAL */}
+      {/* REQUEST PAYMENT MODAL */}
       {showRequestModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
@@ -777,7 +800,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* SEND MODAL WITH BATCH AND MEMO */}
+      {/* SEND MODAL */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
@@ -786,7 +809,6 @@ export default function Home() {
               <button onClick={() => setShowSendModal(false)} className="text-gray-400 hover:text-cyan-500 transition rounded-full p-2.5">✕</button>
             </div>
 
-            {/* BATCH TOGGLE */}
             <div className="flex items-center justify-between bg-black/20 p-3 rounded-2xl mb-6 border border-white/5">
               <div className="flex flex-col">
                 <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Batch Transfer</span>
@@ -840,15 +862,45 @@ export default function Home() {
         </div>
       )}
 
-      {/* TOP NAVIGATION & NETWORK STATUS */}
+      {/* DRAWER / SIDEBAR (NEW UI) */}
+      <div className={`fixed inset-0 z-[100] transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
+        <div className={`absolute top-0 right-0 w-72 sm:w-80 h-full border-l p-6 flex flex-col gap-2 transform transition-transform duration-300 shadow-2xl ${tc.drawerBg} ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex justify-between items-center mb-6">
+            <span className={`text-xl font-black ${tc.textMain}`}>Menu</span>
+            <button onClick={() => setIsSidebarOpen(false)} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>✕</button>
+          </div>
+          
+          <button onClick={() => handleTabSwitch("overview")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "overview" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            Dashboard
+          </button>
+          <button onClick={() => handleTabSwitch("domains")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "domains" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            ARC Domains
+          </button>
+          <button onClick={() => handleTabSwitch("arcpass")} className={`w-full rounded-2xl px-6 py-4 text-left flex justify-between items-center font-black tracking-wide transition-all border ${selectedTab === "arcpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            <span>Arc Pass</span>
+            <span className={`text-[10px] px-2 py-1 rounded-lg ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>NEW</span>
+          </button>
+          <button onClick={() => handleTabSwitch("history")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "history" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            History
+          </button>
+          <button onClick={() => handleTabSwitch("learn")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "learn" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            Learn
+          </button>
+
+          <div className="mt-auto pt-6 border-t border-white/5">
+             <button onClick={toggleTheme} className={`w-full rounded-2xl px-6 py-4 font-black tracking-wide transition-all border flex items-center justify-center gap-2 ${theme === 'dark' ? 'border-white/10 bg-white/5 hover:bg-white/10 text-yellow-400' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-indigo-900'}`}>
+                {theme === 'dark' ? '☀️ Switch to Light Mode' : '🌙 Switch to Dark Mode'}
+             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* TOP NAVIGATION */}
       <nav className={`flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-10 md:py-6 sticky top-0 z-40 backdrop-blur-xl border-b transition-colors duration-500 ${tc.navBorder}`}>
         <div className="flex items-center gap-3 md:gap-5">
           <h1 className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md ${tc.textMain}`}>ArcBank</h1>
           
-          <button onClick={toggleTheme} className={`flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full border transition-all active:scale-90 ${theme === 'dark' ? 'border-white/20 bg-white/5 hover:bg-white/10 text-yellow-400' : 'border-slate-300 bg-white shadow-sm hover:bg-slate-50 text-indigo-900'}`}>
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-
           {wallet && (
             <div className={`hidden sm:flex items-center gap-2 rounded-full border px-3 py-1.5 backdrop-blur-md ${theme === 'dark' ? 'border-white/5 bg-black/30' : 'border-slate-200 bg-white shadow-sm'}`}>
               <div className={`w-2 h-2 rounded-full ${isArcTestnet ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'} animate-pulse`}></div>
@@ -859,338 +911,314 @@ export default function Home() {
           )}
         </div>
         
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-3">
           {wallet ? (
             <>
-              <div className={`hidden md:block rounded-full border px-6 py-2.5 font-bold tracking-wider backdrop-blur-md shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
-              <button type="button" onClick={disconnectWallet} className="rounded-full bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 md:px-6 md:py-2.5 text-[10px] md:text-sm transition-all hover:bg-red-500 hover:text-white font-bold backdrop-blur-md hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]">Disconnect</button>
+              <div className={`hidden md:block rounded-full border px-5 py-2 font-bold tracking-wider backdrop-blur-md shadow-sm text-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-800'}`}>{wallet.slice(0, 6)}...{wallet.slice(-4)}</div>
+              <button type="button" onClick={disconnectWallet} className="hidden sm:block rounded-full bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 text-xs md:text-sm transition-all hover:bg-red-500 hover:text-white font-bold backdrop-blur-md hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]">Disconnect</button>
             </>
           ) : (
-            <button type="button" onClick={connectWallet} className={`rounded-full px-4 py-2 sm:px-6 sm:py-2.5 md:px-8 md:py-2.5 text-xs sm:text-sm md:text-base transition-all hover:scale-105 active:scale-95 font-black shadow-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>Connect Wallet</button>
+            <button type="button" onClick={connectWallet} className={`rounded-full px-4 py-2 text-xs sm:text-sm md:text-base transition-all hover:scale-105 active:scale-95 font-black shadow-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>Connect Wallet</button>
           )}
+
+          {/* NEW HAMBURGER MENU BUTTON */}
+          <button onClick={() => setIsSidebarOpen(true)} className={`flex items-center justify-center w-10 h-10 rounded-full border transition-all active:scale-90 ${theme === 'dark' ? 'border-white/20 bg-white/5 hover:bg-white/10 text-white' : 'border-slate-300 bg-white shadow-sm hover:bg-slate-50 text-slate-900'}`}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
         </div>
       </nav>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT - RESTRUCTURED TO FULL WIDTH (NO SIDEBAR) */}
       <main className="flex-1 px-4 py-6 md:py-10 md:px-10">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 md:gap-12">
+        <div className="mx-auto w-full max-w-4xl flex flex-col gap-8 md:gap-10">
           
-          <div className="text-center space-y-4 md:space-y-5 mt-2 md:mt-4">
-            <h1 className={`text-4xl sm:text-6xl md:text-8xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br pb-2 drop-shadow-sm ${tc.textWelcome}`}>
+          <div className="text-center space-y-3 md:space-y-4">
+            <h1 className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br pb-2 drop-shadow-sm ${tc.textWelcome}`}>
               Welcome to ArcBank
             </h1>
-            <p className={`text-base md:text-xl font-medium tracking-wide max-w-2xl mx-auto px-2 ${tc.textDesc}`}>
+            <p className={`text-sm md:text-lg font-medium tracking-wide max-w-xl mx-auto px-2 ${tc.textDesc}`}>
               Enterprise-grade stablecoin management built on the lightning-fast Arc L1 Network.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 xl:grid-cols-[280px_1fr]">
-            
-            {/* SIDEBAR */}
-            <aside className="flex flex-col gap-3 md:gap-4 overflow-x-hidden md:overflow-visible pb-4 md:pb-0 flex-shrink-0 lg:flex-nowrap">
-              <button onClick={() => setSelectedTab("overview")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "overview" ? tc.sidebarActive : tc.sidebarInactive}`}>
-                Dashboard
-              </button>
-              <button onClick={() => setSelectedTab("domains")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "domains" ? tc.sidebarActive : tc.sidebarInactive}`}>
-                ARC Domains
-              </button>
-              <button onClick={() => setSelectedTab("arcpass")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left flex justify-between items-center font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "arcpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
-                <span>Arc Pass</span>
-              </button>
-              <button onClick={() => setSelectedTab("history")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "history" ? tc.sidebarActive : tc.sidebarInactive}`}>
-                History
-              </button>
-              <button onClick={() => setSelectedTab("learn")} className={`w-full rounded-2xl md:rounded-[2rem] px-6 py-4 md:px-8 md:py-5 text-left font-black tracking-wide transition-all border backdrop-blur-md md:hover:scale-[1.02] ${selectedTab === "learn" ? tc.sidebarActive : tc.sidebarInactive}`}>
-                Learn
-              </button>
-            </aside>
+          <div className="w-full">
+            {selectedTab === "overview" && (
+              <div className="space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500">
+                <div className="grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2">
+                  <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
+                    <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💵</div>
+                    <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>USDC Balance</div>
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter drop-shadow-sm">{balancesLoading ? "..." : usdcBalance}</div>
+                  </div>
 
-            {/* DASHBOARD TABS */}
-            <div className="space-y-6 md:space-y-8">
-              {selectedTab === "overview" && (
-                <>
-                  <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-3">
-                    <div className="lg:col-span-2 grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2">
-                      <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
-                        <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💵</div>
-                        <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>USDC Balance</div>
-                        <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter drop-shadow-sm">{balancesLoading ? "..." : usdcBalance}</div>
-                      </div>
+                  <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
+                    <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💶</div>
+                    <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>EURC Balance</div>
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter drop-shadow-sm">{balancesLoading ? "..." : eurcBalance}</div>
+                  </div>
+                </div>
 
-                      <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
-                        <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💶</div>
-                        <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>EURC Balance</div>
-                        <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter drop-shadow-sm">{balancesLoading ? "..." : eurcBalance}</div>
-                      </div>
-                    </div>
-
-                    <div className={`rounded-3xl md:rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b p-6 md:p-8 shadow-xl flex flex-col justify-center items-center text-center relative overflow-hidden group ${theme === 'dark' ? 'from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'from-orange-50 to-white text-slate-900'}`}>
-                      <div className="absolute -top-4 -right-4 md:-top-6 md:-right-6 p-4 opacity-10 text-6xl md:text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
-                      
-                      <div className="text-4xl md:text-5xl mb-4 md:mb-6">{hasCheckedInToday ? "🔥" : "⏳"}</div>
-                      <h3 className="text-xl md:text-2xl font-black mb-2 tracking-tight">Daily GM</h3>
-                      <p className={`text-xs md:text-sm font-medium mb-4 md:mb-6 px-2 md:px-4 ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Execute a real zero-value transaction to build your on-chain streak!</p>
-                      
-                      <div className={`text-lg md:text-xl font-black mb-4 md:mb-6 uppercase tracking-widest px-5 md:px-6 py-2 rounded-full border ${theme === 'dark' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
+                <div className={`rounded-3xl md:rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b p-6 md:p-8 shadow-xl flex flex-col sm:flex-row justify-between items-center text-center sm:text-left relative overflow-hidden group gap-6 ${theme === 'dark' ? 'from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'from-orange-50 to-white text-slate-900'}`}>
+                  <div className="absolute -top-4 -right-4 md:-top-6 md:-right-6 p-4 opacity-10 text-6xl md:text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
+                  
+                  <div className="flex flex-col items-center sm:items-start z-10">
+                     <div className="text-4xl md:text-5xl mb-2">{hasCheckedInToday ? "🔥" : "⏳"}</div>
+                     <h3 className="text-xl md:text-2xl font-black mb-1 tracking-tight">Daily GM Streak</h3>
+                     <p className={`text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Execute a real zero-value transaction on-chain!</p>
+                  </div>
+                  
+                  <div className="flex flex-col w-full sm:w-auto items-center sm:items-end gap-3 z-10">
+                     <div className={`text-sm md:text-base font-black uppercase tracking-widest px-5 py-1.5 rounded-full border ${theme === 'dark' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
                         {streak > 0 ? `Day ${streak}` : "No Streak"}
-                      </div>
-                      
-                      <button 
+                     </div>
+                     <button 
                         onClick={executeDailyGM}
                         disabled={isCheckingIn || hasCheckedInToday || !wallet}
-                        className={`w-full rounded-xl md:rounded-2xl py-3 md:py-4 font-black text-base md:text-lg transition-all duration-300 shadow-xl ${
-                          hasCheckedInToday 
-                            ? (theme === 'dark' ? "bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed" : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed") 
-                            : (theme === 'dark' ? "bg-white text-black hover:bg-gray-200 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md animate-pulse hover:animate-none")
+                        className={`w-full sm:w-48 rounded-xl py-3 font-black text-sm transition-all duration-300 shadow-xl ${
+                           hasCheckedInToday 
+                              ? (theme === 'dark' ? "bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed" : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed") 
+                              : (theme === 'dark' ? "bg-white text-black hover:bg-gray-200 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md animate-pulse hover:animate-none")
                         }`}
-                      >
+                     >
                         {isCheckingIn ? "Signing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
-                      </button>
-                    </div>
+                     </button>
                   </div>
-
-                  {/* ACTION GRID - UPDATED FOR REQUEST BUTTON */}
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
-                    <button onClick={handleOpenSendModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Send</div>
-                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH (v0.7.2)</span>
-                    </button>
-                    
-                    <button onClick={handleOpenRequestModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center relative ${tc.actionCard}`}>
-                      <div className="absolute top-2 right-2 md:top-4 md:right-4 w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
-                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Request</div>
-                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>PAYMENT LINK</span>
-                    </button>
-
-                    <button onClick={copyAddress} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive</div>
-                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>COPY ADDRESS</span>
-                    </button>
-
-                    <button onClick={openFaucet} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
-                      <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Faucet</div>
-                      <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>FREE TESTNET</span>
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* ARC DOMAINS TAB */}
-              {selectedTab === "domains" && (
-                <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl shadow-2xl' : 'border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white shadow-xl'}`}>
-                  <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-5' : 'opacity-[0.03]'}`}>🌐</div>
-                  <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>ARC Web3 Identity</h2>
-                  <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.arc</span> username on the blockchain and establish your lifetime identity.</p>
-                  
-                  <div className={`flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full max-w-3xl rounded-3xl sm:rounded-full p-2 pl-4 md:pl-6 transition-shadow ${theme === 'dark' ? 'bg-black border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:shadow-[0_0_40px_rgba(6,182,212,0.2)]' : 'bg-white border border-cyan-300 shadow-md hover:shadow-lg'}`}>
-                    <span className={`hidden sm:inline-block text-xl font-bold ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>∞</span>
-                    <input 
-                      type="text" 
-                      value={domainSearch}
-                      onChange={(e) => { setDomainSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setDomainAvailable(false); }}
-                      placeholder="Search a name (e.g. jubayir69)" 
-                      className={`flex-1 w-full bg-transparent border-none text-lg md:text-xl font-bold focus:outline-none text-center sm:text-left py-2 sm:py-0 ${theme === 'dark' ? 'text-white placeholder-zinc-700' : 'text-slate-900 placeholder-slate-400'}`}
-                    />
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                      <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arc</div>
-                      <button onClick={handleSearchDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md">
-                        Search →
-                      </button>
-                    </div>
-                  </div>
-
-                  {domainAvailable && (
-                    <div className={`mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-between p-5 md:p-6 rounded-3xl max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 ${theme === 'dark' ? 'bg-cyan-950/30 border border-cyan-500/30' : 'bg-cyan-50 border border-cyan-200'}`}>
-                      <div className="flex items-center gap-4 md:gap-5">
-                        <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border ==border-cyan-200 shadow-sm'}`}>
-                          <img src="/arc-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
-                        </div>
-                        <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arc</div>
-                      </div>
-                      <div className="flex items-center gap-4 md:gap-6 mt-4 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
-                        <div className={`text-lg md:text-xl font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>1 USDC</div>
-                        <button 
-                          onClick={executeRegisterDomain} 
-                          disabled={isRegistering}
-                          className={`font-black px-6 py-2.5 md:px-8 md:py-3.5 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto ${theme === 'dark' ? 'bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-300 disabled:text-slate-500 text-white shadow-md'}`}
-                        >
-                          {isRegistering ? "Registering..." : "Register"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
 
-              {/* ARC PASS */}
-              {selectedTab === "arcpass" && (
-                <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 flex flex-col items-center justify-center min-h-[50vh] md:min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-white/10 bg-white/[0.02] backdrop-blur-3xl shadow-2xl' : 'border border-slate-200 bg-white shadow-xl'}`}>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 md:gap-6">
+                  <button onClick={handleOpenSendModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                    <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Send</div>
+                    <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>BATCH (v0.7.2)</span>
+                  </button>
                   
-                  {theme === 'dark' && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 md:w-96 md:h-96 bg-cyan-500/20 rounded-full blur-[80px] md:blur-[100px] pointer-events-none"></div>}
+                  <button onClick={handleOpenRequestModal} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center relative ${tc.actionCard}`}>
+                    <div className="absolute top-2 right-2 md:top-4 md:right-4 w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+                    <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Request</div>
+                    <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>PAYMENT LINK</span>
+                  </button>
 
-                  {!registeredDomain ? (
-                    <div className="text-center z-10 max-w-lg px-4">
-                      <div className="text-5xl md:text-7xl mb-4 md:mb-6 animate-pulse">🪪</div>
-                      <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your Arc Pass</h2>
-                      <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
-                      <button onClick={() => setSelectedTab("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
-                        Register Domain Now
+                  <button onClick={copyAddress} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                    <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Receive</div>
+                    <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>COPY ADDRESS</span>
+                  </button>
+
+                  <button onClick={openFaucet} className={`group rounded-2xl sm:rounded-3xl md:rounded-[2.5rem] p-4 sm:p-6 md:p-8 text-center transition-all md:hover:-translate-y-2 flex flex-col items-center justify-center ${tc.actionCard}`}>
+                    <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Faucet</div>
+                    <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>FREE TESTNET</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedTab === "domains" && (
+              <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl shadow-2xl' : 'border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white shadow-xl'}`}>
+                <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-5' : 'opacity-[0.03]'}`}>🌐</div>
+                <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>ARC Web3 Identity</h2>
+                <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.arc</span> username on the blockchain and establish your lifetime identity.</p>
+                
+                <div className={`flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full bg-black border rounded-3xl sm:rounded-full p-2 pl-4 md:pl-6 transition-shadow ${theme === 'dark' ? 'border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:shadow-[0_0_40px_rgba(6,182,212,0.2)]' : 'border-cyan-300 shadow-md hover:shadow-lg'}`}>
+                  <span className={`hidden sm:inline-block text-xl font-bold ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>∞</span>
+                  <input 
+                    type="text" 
+                    value={domainSearch}
+                    onChange={(e) => { setDomainSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setDomainAvailable(false); }}
+                    placeholder="Search a name (e.g. jubayir69)" 
+                    className={`flex-1 w-full bg-transparent border-none text-lg md:text-xl font-bold focus:outline-none text-center sm:text-left py-2 sm:py-0 ${theme === 'dark' ? 'text-white placeholder-zinc-700' : 'text-slate-900 placeholder-slate-400'}`}
+                  />
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arc</div>
+                    <button onClick={handleSearchDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md">
+                      Search →
+                    </button>
+                  </div>
+                </div>
+
+                {domainAvailable && (
+                  <div className={`mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-between p-5 md:p-6 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 ${theme === 'dark' ? 'bg-cyan-950/30 border border-cyan-500/30' : 'bg-cyan-50 border border-cyan-200'}`}>
+                    <div className="flex items-center gap-4 md:gap-5">
+                      <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border border-cyan-200 shadow-sm'}`}>
+                        <img src="/arc-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
+                      </div>
+                      <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arc</div>
+                    </div>
+                    <div className="flex items-center gap-4 md:gap-6 mt-4 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
+                      <div className={`text-lg md:text-xl font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>1 USDC</div>
+                      <button 
+                        onClick={executeRegisterDomain} 
+                        disabled={isRegistering}
+                        className={`font-black px-6 py-2.5 md:px-8 md:py-3.5 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto ${theme === 'dark' ? 'bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-300 disabled:text-slate-500 text-white shadow-md'}`}
+                      >
+                        {isRegistering ? "Registering..." : "Register"}
                       </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedTab === "arcpass" && (
+              <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 flex flex-col items-center justify-center min-h-[50vh] md:min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-white/10 bg-white/[0.02] backdrop-blur-3xl shadow-2xl' : 'border border-slate-200 bg-white shadow-xl'}`}>
+                {theme === 'dark' && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 md:w-96 md:h-96 bg-cyan-500/20 rounded-full blur-[80px] md:blur-[100px] pointer-events-none"></div>}
+
+                {!registeredDomain ? (
+                  <div className="text-center z-10 max-w-lg px-4">
+                    <div className="text-5xl md:text-7xl mb-4 md:mb-6 animate-pulse">🪪</div>
+                    <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your Arc Pass</h2>
+                    <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
+                    <button onClick={() => setSelectedTab("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
+                      Register Domain Now
+                    </button>
+                  </div>
+                ) : (
+                  <div className="z-10 w-full flex flex-col items-center">
+                    <div className="text-center mb-8 md:mb-10">
+                      <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${tc.textMain}`}>Your Digital Identity</h2>
+                      <p className={`text-xs md:text-sm font-bold mt-1 md:mt-2 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Verified on Arc Blockchain</p>
+                    </div>
+
+                    <div id="arc-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
+                      
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
+
+                      <div className="flex justify-between items-start w-full relative z-10">
+                        <div className="flex items-center gap-2 md:gap-3">
+                          <div className="w-8 h-8 md:w-10 md:h-10 bg-[#050B14] rounded-lg md:rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1 md:p-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                            <img src="/arc-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
+                          </div>
+                          <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">ARC PASS</div>
+                        </div>
+                        <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[8px] md:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 md:gap-1.5">
+                          <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                          Verified
+                        </div>
+                      </div>
+
+                      <div className="relative z-10 mt-4 md:mt-6">
+                        <div className="text-[8px] md:text-[10px] text-cyan-200/70 font-black uppercase tracking-[0.2em] mb-1">Web3 Identity</div>
+                        <div className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md truncate">{registeredDomain}</div>
+                        <div className="text-xs md:text-sm font-mono text-gray-400 mt-1 md:mt-2 bg-black/30 inline-block px-2 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg border border-white/5">
+                          {wallet.slice(0,6)}...{wallet.slice(-4)}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-end w-full relative z-10 mt-2 md:mt-0">
+                        <div className="flex gap-4 md:gap-6">
+                          <div>
+                            <div className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5 md:mb-1">Network</div>
+                            <div className="font-black text-xs md:text-sm text-cyan-400">ARC TESTNET</div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5 md:mb-1">GM Streak</div>
+                            <div className="font-black text-xs md:text-sm text-orange-400 flex items-center gap-1">
+                              {streak} DAYS 🔥
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-8 md:mt-10 flex flex-wrap justify-center gap-3 md:gap-4">
+                      <button onClick={downloadArcPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Save Image
+                      </button>
+                      
+                      <button onClick={shareOnX} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-black hover:bg-zinc-900 text-white border-zinc-800' : 'bg-slate-900 hover:bg-slate-800 text-white border-slate-800'}`}>
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+                        Share on X
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedTab === "history" && (
+              <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 animate-in fade-in duration-500 ${tc.solidCardBg}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
+                  <div>
+                    <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${tc.textMain}`}>Transaction History</h2>
+                    <p className={`text-xs md:text-sm font-semibold mt-1 md:mt-2 ${tc.textMuted}`}>Real verifiable blockchain events</p>
+                  </div>
+                  <button onClick={openExplorer} className={`rounded-full border px-6 py-2.5 md:px-8 md:py-3 text-xs md:text-sm font-black tracking-wide transition-all active:scale-95 w-full sm:w-auto shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black text-white' : 'bg-slate-100 border-slate-200 hover:bg-slate-900 hover:text-white text-slate-800'}`}>
+                    Arc Explorer ↗
+                  </button>
+                </div>
+                
+                <div className="space-y-3 md:space-y-4">
+                  {txHistory.length === 0 ? (
+                    <div className="text-center py-10 md:py-20">
+                      <div className="text-5xl md:text-6xl mb-3 md:mb-4 opacity-50">📭</div>
+                      <div className={`font-bold text-base md:text-lg ${tc.textMuted}`}>No blockchain activity found.</div>
                     </div>
                   ) : (
-                    <div className="z-10 w-full flex flex-col items-center">
-                      <div className="text-center mb-8 md:mb-10">
-                        <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${tc.textMain}`}>Your Digital Identity</h2>
-                        <p className={`text-xs md:text-sm font-bold mt-1 md:mt-2 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Verified on Arc Blockchain</p>
-                      </div>
-
-                      <div id="arc-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
+                    txHistory.map((item) => (
+                      <div key={item.id} className={`rounded-xl md:rounded-2xl border p-4 md:p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 md:gap-6 transition-all ${tc.historyCard}`}>
+                        <div className="flex items-center gap-4 md:gap-6">
+                          <div className={`p-3 md:p-4 rounded-full border ${item.status === "Completed" ? (theme==='dark'?"bg-green-500/10 text-green-400 border-green-500/20":"bg-green-100 text-green-600 border-green-200") : item.status === "Failed" ? (theme==='dark'?"bg-red-500/10 text-red-400 border-red-500/20":"bg-red-100 text-red-600 border-red-200") : (theme==='dark'?"bg-amber-500/10 text-amber-400 border-amber-500/20":"bg-amber-100 text-amber-600 border-amber-200")}`}>
+                            {item.status === "Completed" ? "✓" : item.status === "Failed" ? "✕" : "⏳"}
+                          </div>
+                          <div>
+                            <div className={`font-black text-lg md:text-xl tracking-tight leading-tight ${tc.textMain}`}>{item.label}</div>
+                            {item.txHash ? (
+                              <a href={`${ARC_EXPLORER}/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className={`mt-1 md:mt-1.5 text-xs md:text-sm font-bold underline underline-offset-4 flex items-center gap-1 md:gap-1.5 transition-colors ${theme === 'dark' ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-500'}`}>
+                                <span className="truncate max-w-[150px] sm:max-w-none">{item.meta}</span> <span className="text-[10px] md:text-xs flex-shrink-0">↗</span>
+                              </a>
+                            ) : (
+                              <div className={`mt-1 md:mt-1.5 text-xs md:text-sm font-bold ${tc.textMuted}`}>{item.meta}</div>
+                            )}
+                          </div>
+                        </div>
                         
-                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
-
-                        <div className="flex justify-between items-start w-full relative z-10">
-                          <div className="flex items-center gap-2 md:gap-3">
-                            <div className="w-8 h-8 md:w-10 md:h-10 bg-[#050B14] rounded-lg md:rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1 md:p-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                              <img src="/arc-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
+                        <div className="sm:text-right pl-14 md:pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
+                          {item.amount && (
+                            <div className={`font-black text-xl md:text-2xl tracking-tighter ${item.amount.startsWith("+") ? (theme==='dark'?'text-emerald-400':'text-emerald-600') : item.amount.startsWith("-") ? tc.textMain : tc.textMuted}`}>
+                              {item.amount}
                             </div>
-                            <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">ARC PASS</div>
-                          </div>
-                          <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[8px] md:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 md:gap-1.5">
-                            <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                            Verified
-                          </div>
-                        </div>
-
-                        <div className="relative z-10 mt-4 md:mt-6">
-                          <div className="text-[8px] md:text-[10px] text-cyan-200/70 font-black uppercase tracking-[0.2em] mb-1">Web3 Identity</div>
-                          <div className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md truncate">{registeredDomain}</div>
-                          <div className="text-xs md:text-sm font-mono text-gray-400 mt-1 md:mt-2 bg-black/30 inline-block px-2 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg border border-white/5">
-                            {wallet.slice(0,6)}...{wallet.slice(-4)}
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-end w-full relative z-10 mt-2 md:mt-0">
-                          <div className="flex gap-4 md:gap-6">
-                            <div>
-                              <div className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5 md:mb-1">Network</div>
-                              <div className="font-black text-xs md:text-sm text-cyan-400">ARC TESTNET</div>
-                            </div>
-                            <div>
-                              <div className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5 md:mb-1">GM Streak</div>
-                              <div className="font-black text-xs md:text-sm text-orange-400 flex items-center gap-1">
-                                {streak} DAYS 🔥
-                              </div>
-                            </div>
+                          )}
+                          <div className={`mt-1.5 md:mt-2 inline-block px-2.5 py-1 md:px-3 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest ${item.status === "Completed" ? (theme==='dark'?"bg-emerald-500/10 text-emerald-400":"bg-emerald-100 text-emerald-600") : item.status === "Failed" ? (theme==='dark'?"bg-red-500/10 text-red-400":"bg-red-100 text-red-600") : (theme==='dark'?"bg-amber-500/10 text-amber-400":"bg-amber-100 text-amber-600")}`}>
+                            {item.status}
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="mt-8 md:mt-10 flex flex-wrap justify-center gap-3 md:gap-4">
-                        <button onClick={downloadArcPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
-                          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                          Save Image
-                        </button>
-                        
-                        <button onClick={shareOnX} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-black hover:bg-zinc-900 text-white border-zinc-800' : 'bg-slate-900 hover:bg-slate-800 text-white border-slate-800'}`}>
-                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 md:w-4 md:h-4"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
-                          Share on X
-                        </button>
-                      </div>
-
-                    </div>
+                    ))
                   )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* HISTORY TAB */}
-              {selectedTab === "history" && (
-                <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 animate-in fade-in duration-500 ${tc.solidCardBg}`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
-                    <div>
-                      <h2 className={`text-2xl md:text-3xl font-black tracking-tight ${tc.textMain}`}>Transaction History</h2>
-                      <p className={`text-xs md:text-sm font-semibold mt-1 md:mt-2 ${tc.textMuted}`}>Real verifiable blockchain events</p>
-                    </div>
-                    <button onClick={openExplorer} className={`rounded-full border px-6 py-2.5 md:px-8 md:py-3 text-xs md:text-sm font-black tracking-wide transition-all active:scale-95 w-full sm:w-auto shadow-sm ${theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black text-white' : 'bg-slate-100 border-slate-200 hover:bg-slate-900 hover:text-white text-slate-800'}`}>
-                      Arc Explorer ↗
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-3 md:space-y-4">
-                    {txHistory.length === 0 ? (
-                      <div className="text-center py-10 md:py-20">
-                        <div className="text-5xl md:text-6xl mb-3 md:mb-4 opacity-50">📭</div>
-                        <div className={`font-bold text-base md:text-lg ${tc.textMuted}`}>No blockchain activity found.</div>
-                      </div>
-                    ) : (
-                      txHistory.map((item) => (
-                        <div key={item.id} className={`rounded-xl md:rounded-2xl border p-4 md:p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 md:gap-6 transition-all ${tc.historyCard}`}>
-                          <div className="flex items-center gap-4 md:gap-6">
-                            <div className={`p-3 md:p-4 rounded-full border ${item.status === "Completed" ? (theme==='dark'?"bg-green-500/10 text-green-400 border-green-500/20":"bg-green-100 text-green-600 border-green-200") : item.status === "Failed" ? (theme==='dark'?"bg-red-500/10 text-red-400 border-red-500/20":"bg-red-100 text-red-600 border-red-200") : (theme==='dark'?"bg-amber-500/10 text-amber-400 border-amber-500/20":"bg-amber-100 text-amber-600 border-amber-200")}`}>
-                              {item.status === "Completed" ? "✓" : item.status === "Failed" ? "✕" : "⏳"}
-                            </div>
-                            <div>
-                              <div className={`font-black text-lg md:text-xl tracking-tight leading-tight ${tc.textMain}`}>{item.label}</div>
-                              {item.txHash ? (
-                                <a href={`${ARC_EXPLORER}/tx/${item.txHash}`} target="_blank" rel="noopener noreferrer" className={`mt-1 md:mt-1.5 text-xs md:text-sm font-bold underline underline-offset-4 flex items-center gap-1 md:gap-1.5 transition-colors ${theme === 'dark' ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-500'}`}>
-                                  <span className="truncate max-w-[150px] sm:max-w-none">{item.meta}</span> <span className="text-[10px] md:text-xs flex-shrink-0">↗</span>
-                                </a>
-                              ) : (
-                                <div className={`mt-1 md:mt-1.5 text-xs md:text-sm font-bold ${tc.textMuted}`}>{item.meta}</div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="sm:text-right pl-14 md:pl-20 sm:pl-0 flex flex-col items-start sm:items-end">
-                            {item.amount && (
-                              <div className={`font-black text-xl md:text-2xl tracking-tighter ${item.amount.startsWith("+") ? (theme==='dark'?'text-emerald-400':'text-emerald-600') : item.amount.startsWith("-") ? tc.textMain : tc.textMuted}`}>
-                                {item.amount}
-                              </div>
-                            )}
-                            <div className={`mt-1.5 md:mt-2 inline-block px-2.5 py-1 md:px-3 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest ${item.status === "Completed" ? (theme==='dark'?"bg-emerald-500/10 text-emerald-400":"bg-emerald-100 text-emerald-600") : item.status === "Failed" ? (theme==='dark'?"bg-red-500/10 text-red-400":"bg-red-100 text-red-600") : (theme==='dark'?"bg-amber-500/10 text-amber-400":"bg-amber-100 text-amber-600")}`}>
-                              {item.status}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+            {selectedTab === "learn" && (
+              <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+                <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden ${theme === 'dark' ? 'border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-blue-200 bg-gradient-to-br from-blue-50 to-white'}`}>
+                  <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>📖</div>
+                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is Arc Network?</h2>
+                  <p className={`text-sm md:text-xl font-medium leading-relaxed max-w-3xl mb-6 md:mb-10 ${tc.textDesc}`}>
+                    Arc is an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
+                  </p>
+                  <button onClick={openArcWebsite} className={`rounded-full px-6 py-3 md:px-10 md:py-4 font-black transition-all active:scale-95 flex items-center gap-2 md:gap-3 text-sm md:text-base w-full sm:w-auto justify-center shadow-lg ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-200' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                    Visit Arc Official Website <span className="text-xl md:text-2xl">↗</span>
+                  </button>
                 </div>
-              )}
 
-              {/* LEARN SECTION TAB */}
-              {selectedTab === "learn" && (
-                <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
-                  <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden ${theme === 'dark' ? 'border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-blue-200 bg-gradient-to-br from-blue-50 to-white'}`}>
-                    <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>📖</div>
-                    <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is Arc Network?</h2>
-                    <p className={`text-sm md:text-xl font-medium leading-relaxed max-w-3xl mb-6 md:mb-10 ${tc.textDesc}`}>
-                      Arc is an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div className="text-5xl md:text-6xl mb-4 md:mb-8">🌐</div>
+                    <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Circle Integration</h3>
+                    <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
+                      Arc natively supports Circle's major stablecoins like <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC</strong> (US Dollar) and <strong className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}>EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
                     </p>
-                    <button onClick={openArcWebsite} className={`rounded-full px-6 py-3 md:px-10 md:py-4 font-black transition-all active:scale-95 flex items-center gap-2 md:gap-3 text-sm md:text-base w-full sm:w-auto justify-center shadow-lg ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-200' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                      Visit Arc Official Website <span className="text-xl md:text-2xl">↗</span>
-                    </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                    <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                      <div className="text-5xl md:text-6xl mb-4 md:mb-8">🌐</div>
-                      <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Circle Integration</h3>
-                      <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
-                        Arc natively supports Circle's major stablecoins like <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC</strong> (US Dollar) and <strong className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}>EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
-                      </p>
-                    </div>
-
-                    <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                      <div className="text-5xl md:text-6xl mb-4 md:mb-8">⚡</div>
-                      <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Native Gas Asset</h3>
-                      <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
-                        Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
-                      </p>
-                    </div>
+                  <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div className="text-5xl md:text-6xl mb-4 md:mb-8">⚡</div>
+                    <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Native Gas Asset</h3>
+                    <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
+                      Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
