@@ -11,9 +11,18 @@ const ARC_FAUCET = "https://faucet.circle.com";
 
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
+// NEW: Your deployed Arc Name Service Contract
+const ANS_CONTRACT_ADDRESS = "0x68A2a776BaE48fd0bB7a409a9709d61A34Ced42c";
+
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)"
+];
+
+const ANS_ABI = [
+  "function register(string _name) external",
+  "function resolve(string _name) external view returns (address)",
+  "function isAvailable(string _name) external view returns (bool)"
 ];
 
 type ActivityItem = {
@@ -30,13 +39,8 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
   
-  // Added "dailygm" to the tabs
   const [selectedTab, setSelectedTab] = useState<"overview" | "dailygm" | "domains" | "arcpass" | "history" | "learn">("overview");
-  
-  // Sidebar/Drawer State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Theme State
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const [usdcBalance, setUsdcBalance] = useState("0.00");
@@ -52,7 +56,7 @@ export default function Home() {
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
-  // Request Payment Modal States
+  // Request Payment Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestAsset, setRequestAsset] = useState<"USDC" | "EURC">("USDC");
@@ -67,6 +71,7 @@ export default function Home() {
   // ARC Domains Feature
   const [domainSearch, setDomainSearch] = useState("");
   const [domainAvailable, setDomainAvailable] = useState(false);
+  const [isCheckingDomain, setIsCheckingDomain] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [showDomainSuccess, setShowDomainSuccess] = useState(false);
   const [registeredDomain, setRegisteredDomain] = useState("");
@@ -77,7 +82,6 @@ export default function Home() {
 
   const isArcTestnet = chainId === ARC_CHAIN_ID;
 
-  // URL Parameter Parsing for Payment Request Links
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -125,7 +129,6 @@ export default function Home() {
     window.setTimeout(() => setMessage(""), 4000);
   };
 
-  // MULTI-WALLET RESOLVER
   const getEthereum = () => {
     if (typeof window === "undefined") return null;
     const eth = (window as any).ethereum;
@@ -412,6 +415,7 @@ export default function Home() {
     showMessage("Link copied to clipboard! 📋");
   };
 
+  // SEND & RESOLVE LOGIC INTEGRATED WITH SMART CONTRACT
   const executeSend = async () => {
     if (!wallet) return showMessage("Please connect wallet first to send");
     if (!sendAddress || !sendAmount) return showMessage("Please fill required fields");
@@ -420,11 +424,6 @@ export default function Home() {
     const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
 
     if (addresses.length === 0) return showMessage("Please enter at least one address");
-
-    const invalidAddresses = addresses.filter(a => !ethers.isAddress(a));
-    if (invalidAddresses.length > 0) {
-      return showMessage(`Invalid address detected: ${invalidAddresses[0]}`);
-    }
 
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
@@ -439,14 +438,45 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
+      // Resolve .arc domains to real addresses
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
+      const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
+      
+      const resolvedAddresses: string[] = [];
+
+      for (let target of addresses) {
+        if (target.endsWith(".arc")) {
+          showMessage(`Resolving domain ${target}...`);
+          const nameOnly = target.replace(".arc", "");
+          const isAvailable = await ansContract.isAvailable(nameOnly);
+          
+          if (isAvailable) {
+            showMessage(`Domain ${target} is not registered by anyone.`);
+            setIsSending(false);
+            return;
+          }
+          
+          const resolvedAddress = await ansContract.resolve(nameOnly);
+          resolvedAddresses.push(resolvedAddress);
+        } else if (ethers.isAddress(target)) {
+          resolvedAddresses.push(target);
+        } else {
+          showMessage(`Invalid address or domain format: ${target}`);
+          setIsSending(false);
+          return;
+        }
+      }
+
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
       let successCount = 0;
 
-      for (let i = 0; i < addresses.length; i++) {
-        const currentTarget = addresses[i];
-        if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${addresses.length}...`);
+      for (let i = 0; i < resolvedAddresses.length; i++) {
+        const currentTarget = resolvedAddresses[i];
+        const displayTarget = addresses[i]; // Show original name or address in UI
+
+        if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${resolvedAddresses.length}...`);
         else showMessage("Confirm transaction in your wallet...");
 
         try {
@@ -471,14 +501,14 @@ export default function Home() {
             });
           }
           
-          showMessage(`Sending ${sendAsset} to ${currentTarget.slice(0,6)}...`);
+          showMessage(`Sending ${sendAsset} to ${displayTarget.slice(0,10)}...`);
           const receipt = await tx.wait();
           const txHash = receipt?.hash || tx?.hash || "";
           
           addHistoryRecord(
             isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
             `-${sendAmount} ${sendAsset}`, 
-            `To ${currentTarget.slice(0,6)}...${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
+            `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
             "Completed", 
             txHash
           );
@@ -486,13 +516,13 @@ export default function Home() {
 
         } catch (txError) {
           console.error("Transaction Error:", txError);
-          showMessage(`Failed to send to ${currentTarget.slice(0,6)}...`);
-          addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, `Failed: ${currentTarget.slice(0,6)}...`, "Failed");
+          showMessage(`Failed to send to ${displayTarget}`);
+          addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, `Failed: ${displayTarget}`, "Failed");
         }
       }
       
       if (successCount > 0) {
-        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${addresses.length} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${resolvedAddresses.length} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
         setShowSendModal(false);
         setSendAddress("");
         setSendAmount("");
@@ -500,10 +530,11 @@ export default function Home() {
         setIsBatchMode(false);
         void fetchBalances(wallet);
       } else {
-        showMessage(isBatchMode ? `Batch Failed: 0/${addresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
+        showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
       }
 
     } catch (error) {
+      console.error(error);
       showMessage("Operation failed or rejected");
     } finally {
       setIsSending(false);
@@ -551,9 +582,31 @@ export default function Home() {
     }
   };
 
-  const handleSearchDomain = () => {
-    if (!domainSearch.trim()) return showMessage("Enter a domain name");
-    setDomainAvailable(true);
+  // SMART CONTRACT INTEGRATION: Check Domain Availability
+  const handleSearchDomain = async () => {
+    const cleanSearch = domainSearch.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!cleanSearch) return showMessage("Enter a valid domain name");
+    
+    setIsCheckingDomain(true);
+    try {
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
+      const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
+      
+      const available = await ansContract.isAvailable(cleanSearch);
+      
+      if (available) {
+        setDomainAvailable(true);
+        showMessage("Domain is available! 🚀");
+      } else {
+        setDomainAvailable(false);
+        showMessage("Domain is already taken! Try another.");
+      }
+    } catch (error) {
+      console.error(error);
+      showMessage("Failed to check network. Try again.");
+    } finally {
+      setIsCheckingDomain(false);
+    }
   };
 
   const triggerConfetti = () => {
@@ -575,18 +628,9 @@ export default function Home() {
     document.body.appendChild(script);
   };
 
+  // SMART CONTRACT INTEGRATION: Register Domain
   const executeRegisterDomain = async () => {
     if (!wallet) return showMessage("Connect wallet first");
-    
-    const lastRegStr = localStorage.getItem(`arcbank_last_domain_${wallet}`);
-    if (lastRegStr) {
-      const lastRegTime = new Date(lastRegStr).getTime();
-      const now = new Date().getTime();
-      const hoursPassed = (now - lastRegTime) / (1000 * 60 * 60);
-      if (hoursPassed < 24) {
-        return showMessage(`You can only register one domain per 24 hours. Please wait.`);
-      }
-    }
 
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
@@ -594,7 +638,6 @@ export default function Home() {
       if (!switched) return;
       await new Promise((res) => setTimeout(res, 1000));
     }
-    if (parseFloat(usdcBalance) < 1) return showMessage("Insufficient USDC! 1 USDC required.");
 
     try {
       setIsRegistering(true);
@@ -602,41 +645,42 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      showMessage("Confirm Domain Registration...");
-      const parsedAmount = ethers.parseUnits("1", 18); 
+      const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, signer);
+      const cleanName = domainSearch.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+      showMessage("Confirm Registration in Wallet...");
       
-      const tx = await signer.sendTransaction({ 
-        to: "0x000000000000000000000000000000000000dEaD", 
-        value: parsedAmount 
-      });
+      const tx = await ansContract.register(cleanName);
 
       showMessage("Registering domain on Arc Network...");
       const receipt = await tx.wait();
       const txHash = receipt?.hash || tx?.hash || "";
 
-      const newDomain = `${domainSearch}.arc`;
+      const newDomain = `${cleanName}.arc`;
       setRegisteredDomain(newDomain);
       setRegistrationHash(txHash);
       
-      localStorage.setItem(`arcbank_last_domain_${wallet}`, new Date().toISOString());
       localStorage.setItem(`arcbank_domain_name_${wallet}`, newDomain);
 
-      addHistoryRecord("ARC Domain Registration", "-1 USDC", newDomain, "Completed", txHash);
+      addHistoryRecord("ARC Domain Registration", "Free", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
       triggerConfetti();
 
       setDomainSearch("");
       setDomainAvailable(false);
-      void fetchBalances(wallet);
-    } catch (error) {
-      showMessage("Domain registration failed or rejected");
+    } catch (error: any) {
+      console.error(error);
+      if (error.reason) {
+        showMessage(`Registration Failed: ${error.reason}`);
+      } else {
+        showMessage("Domain registration failed or rejected");
+      }
     } finally {
       setIsRegistering(false);
     }
   };
 
-  // ADDED BACK: The missing shareOnX function to fix the Vercel Build Error
   const shareOnX = () => {
     const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
@@ -676,7 +720,6 @@ export default function Home() {
     }
   };
 
-  // Switch tabs and close sidebar logic
   const handleTabSwitch = (tab: any) => {
     setSelectedTab(tab);
     setIsSidebarOpen(false);
@@ -802,7 +845,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* SEND MODAL */}
+      {/* SEND MODAL WITH DOMAIN SUPPORT */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
@@ -825,13 +868,13 @@ export default function Home() {
             <div className="space-y-5">
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
-                  <span>Recipient {isBatchMode ? "Addresses" : "Address"}</span>
+                  <span>Recipient {isBatchMode ? "Addresses or .arc names" : "Address or .arc name"}</span>
                   {isBatchMode && <span className="text-[9px] text-orange-400">Separate with comma (,)</span>}
                 </label>
                 {isBatchMode ? (
-                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., 0x2..., 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
+                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., jubayir.arc, 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
                 ) : (
-                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
+                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="e.g., 0x... or jubayir.arc" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
                 )}
               </div>
               <div>
@@ -1040,8 +1083,8 @@ export default function Home() {
                   />
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                     <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arc</div>
-                    <button onClick={handleSearchDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md">
-                      Search →
+                    <button onClick={handleSearchDomain} disabled={isCheckingDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md disabled:opacity-50">
+                      {isCheckingDomain ? "Checking..." : "Search →"}
                     </button>
                   </div>
                 </div>
@@ -1055,13 +1098,13 @@ export default function Home() {
                       <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arc</div>
                     </div>
                     <div className="flex items-center gap-4 md:gap-6 mt-4 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
-                      <div className={`text-lg md:text-xl font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>1 USDC</div>
+                      <div className={`text-sm md:text-base font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>Free (Gas Only)</div>
                       <button 
                         onClick={executeRegisterDomain} 
                         disabled={isRegistering}
                         className={`font-black px-6 py-2.5 md:px-8 md:py-3.5 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto ${theme === 'dark' ? 'bg-cyan-400 hover:bg-cyan-300 disabled:bg-zinc-800 disabled:text-zinc-500 text-black shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-300 disabled:text-slate-500 text-white shadow-md'}`}
                       >
-                        {isRegistering ? "Registering..." : "Register"}
+                        {isRegistering ? "Registering..." : "Register Now"}
                       </button>
                     </div>
                   </div>
@@ -1236,7 +1279,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* FOOTER & BUILDER SECTION */}
+      {/* FOOTER */}
       <footer className={`mt-auto border-t py-8 md:py-12 backdrop-blur-2xl transition-colors duration-500 ${tc.footerBg}`}>
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-6 md:gap-8 px-6 md:flex-row">
           <div className={`text-xs md:text-sm font-bold tracking-widest uppercase text-center md:text-left ${tc.textMuted}`}>
@@ -1248,7 +1291,6 @@ export default function Home() {
               BUILD BY <span className={tc.textMain}>JUBAYIR69</span>
             </div>
             <div className="flex gap-3 md:gap-4">
-              {/* DISCORD SVG */}
               <a href="https://discordapp.com/users/1209377505442537484" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/></svg>
               </a>
