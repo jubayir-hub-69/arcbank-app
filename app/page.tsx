@@ -29,9 +29,11 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [selectedTab, setSelectedTab] = useState<"overview" | "domains" | "arcpass" | "history" | "learn">("overview");
   
-  // NEW: Sidebar/Drawer State
+  // NEW: Added "dailygm" to the tabs
+  const [selectedTab, setSelectedTab] = useState<"overview" | "dailygm" | "domains" | "arcpass" | "history" | "learn">("overview");
+  
+  // Sidebar/Drawer State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Theme State
@@ -62,7 +64,7 @@ export default function Home() {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // ARC Domains
+  // ARC Domains Feature
   const [domainSearch, setDomainSearch] = useState("");
   const [domainAvailable, setDomainAvailable] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -123,22 +125,20 @@ export default function Home() {
     window.setTimeout(() => setMessage(""), 4000);
   };
 
-  // ====== FIXED MULTI-WALLET RESOLVER ======
+  // MULTI-WALLET RESOLVER
   const getEthereum = () => {
     if (typeof window === "undefined") return null;
     const eth = (window as any).ethereum;
     if (!eth) return null;
 
-    // Detect if multiple wallets are injecting into the browser (e.g., Phantom + MetaMask)
     if (eth.providers && eth.providers.length > 0) {
-      // Forcefully prioritize Rabby or MetaMask over Phantom
       const rabby = eth.providers.find((p: any) => p.isRabby);
       if (rabby) return rabby;
       
       const metaMask = eth.providers.find((p: any) => p.isMetaMask && !p.isPhantom);
       if (metaMask) return metaMask;
       
-      return eth.providers[0]; // Fallback
+      return eth.providers[0]; 
     }
     return eth;
   };
@@ -636,12 +636,6 @@ export default function Home() {
     }
   };
 
-  const shareOnX = () => {
-    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
-    const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
-  };
-
   const downloadArcPass = () => {
     showMessage("Generating Image... Please wait ⏳");
     const element = document.getElementById("arc-pass-card");
@@ -724,6 +718,7 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
+      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
@@ -809,6 +804,7 @@ export default function Home() {
               <button onClick={() => setShowSendModal(false)} className="text-gray-400 hover:text-cyan-500 transition rounded-full p-2.5">✕</button>
             </div>
 
+            {/* BATCH TOGGLE */}
             <div className="flex items-center justify-between bg-black/20 p-3 rounded-2xl mb-6 border border-white/5">
               <div className="flex flex-col">
                 <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Batch Transfer</span>
@@ -874,6 +870,10 @@ export default function Home() {
           <button onClick={() => handleTabSwitch("overview")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "overview" ? tc.sidebarActive : tc.sidebarInactive}`}>
             Dashboard
           </button>
+          <button onClick={() => handleTabSwitch("dailygm")} className={`w-full rounded-2xl px-6 py-4 text-left flex justify-between items-center font-black tracking-wide transition-all border ${selectedTab === "dailygm" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            <span>Daily GM</span>
+            <span className="text-xl">🔥</span>
+          </button>
           <button onClick={() => handleTabSwitch("domains")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "domains" ? tc.sidebarActive : tc.sidebarInactive}`}>
             ARC Domains
           </button>
@@ -921,16 +921,16 @@ export default function Home() {
             <button type="button" onClick={connectWallet} className={`rounded-full px-4 py-2 text-xs sm:text-sm md:text-base transition-all hover:scale-105 active:scale-95 font-black shadow-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>Connect Wallet</button>
           )}
 
-          {/* NEW HAMBURGER MENU BUTTON */}
+          {/* HAMBURGER MENU BUTTON */}
           <button onClick={() => setIsSidebarOpen(true)} className={`flex items-center justify-center w-10 h-10 rounded-full border transition-all active:scale-90 ${theme === 'dark' ? 'border-white/20 bg-white/5 hover:bg-white/10 text-white' : 'border-slate-300 bg-white shadow-sm hover:bg-slate-50 text-slate-900'}`}>
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
         </div>
       </nav>
 
-      {/* MAIN CONTENT - RESTRUCTURED TO FULL WIDTH (NO SIDEBAR) */}
-      <main className="flex-1 px-4 py-6 md:py-10 md:px-10">
-        <div className="mx-auto w-full max-w-4xl flex flex-col gap-8 md:gap-10">
+      {/* MAIN CONTENT */}
+      <main className="flex-1 px-4 py-6 md:py-10 md:px-10 flex flex-col items-center">
+        <div className="w-full max-w-4xl flex flex-col gap-8 md:gap-10">
           
           <div className="text-center space-y-3 md:space-y-4">
             <h1 className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br pb-2 drop-shadow-sm ${tc.textWelcome}`}>
@@ -944,7 +944,8 @@ export default function Home() {
           <div className="w-full">
             {selectedTab === "overview" && (
               <div className="space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500">
-                <div className="grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2">
+                {/* 2 FULL WIDTH CARDS FOR BALANCES */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8">
                   <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
                     <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💵</div>
                     <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>USDC Balance</div>
@@ -955,33 +956,6 @@ export default function Home() {
                     <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💶</div>
                     <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest mb-3 md:mb-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>EURC Balance</div>
                     <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter drop-shadow-sm">{balancesLoading ? "..." : eurcBalance}</div>
-                  </div>
-                </div>
-
-                <div className={`rounded-3xl md:rounded-[2.5rem] border border-orange-500/20 bg-gradient-to-b p-6 md:p-8 shadow-xl flex flex-col sm:flex-row justify-between items-center text-center sm:text-left relative overflow-hidden group gap-6 ${theme === 'dark' ? 'from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'from-orange-50 to-white text-slate-900'}`}>
-                  <div className="absolute -top-4 -right-4 md:-top-6 md:-right-6 p-4 opacity-10 text-6xl md:text-8xl group-hover:rotate-12 transition-transform duration-700">☀️</div>
-                  
-                  <div className="flex flex-col items-center sm:items-start z-10">
-                     <div className="text-4xl md:text-5xl mb-2">{hasCheckedInToday ? "🔥" : "⏳"}</div>
-                     <h3 className="text-xl md:text-2xl font-black mb-1 tracking-tight">Daily GM Streak</h3>
-                     <p className={`text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Execute a real zero-value transaction on-chain!</p>
-                  </div>
-                  
-                  <div className="flex flex-col w-full sm:w-auto items-center sm:items-end gap-3 z-10">
-                     <div className={`text-sm md:text-base font-black uppercase tracking-widest px-5 py-1.5 rounded-full border ${theme === 'dark' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
-                        {streak > 0 ? `Day ${streak}` : "No Streak"}
-                     </div>
-                     <button 
-                        onClick={executeDailyGM}
-                        disabled={isCheckingIn || hasCheckedInToday || !wallet}
-                        className={`w-full sm:w-48 rounded-xl py-3 font-black text-sm transition-all duration-300 shadow-xl ${
-                           hasCheckedInToday 
-                              ? (theme === 'dark' ? "bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed" : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed") 
-                              : (theme === 'dark' ? "bg-white text-black hover:bg-gray-200 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md animate-pulse hover:animate-none")
-                        }`}
-                     >
-                        {isCheckingIn ? "Signing..." : hasCheckedInToday ? `Next: ${timeLeft}` : "Say GM (Check-in)"}
-                     </button>
                   </div>
                 </div>
 
@@ -1006,6 +980,38 @@ export default function Home() {
                     <div className="text-sm sm:text-lg md:text-xl font-black group-hover:scale-105 transition-transform tracking-wide">Faucet</div>
                     <span className={`text-[8px] mt-1 tracking-widest opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>FREE TESTNET</span>
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* NEW DAILY GM TAB */}
+            {selectedTab === "dailygm" && (
+              <div className="w-full flex items-center justify-center animate-in fade-in zoom-in-95 duration-500 mt-4 md:mt-10">
+                <div className={`w-full max-w-2xl rounded-3xl md:rounded-[3rem] border p-8 md:p-14 shadow-2xl flex flex-col items-center text-center relative overflow-hidden group gap-6 md:gap-8 ${theme === 'dark' ? 'border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'border-orange-200 bg-gradient-to-br from-orange-50 to-white text-slate-900'}`}>
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 p-4 opacity-5 text-[15rem] md:text-[20rem] group-hover:rotate-12 transition-transform duration-1000">☀️</div>
+                  
+                  <div className="flex flex-col items-center z-10">
+                     <div className="text-6xl md:text-7xl mb-4 animate-bounce">{hasCheckedInToday ? "🔥" : "⏳"}</div>
+                     <h3 className="text-3xl md:text-4xl font-black mb-3 tracking-tight">Daily GM Protocol</h3>
+                     <p className={`text-sm md:text-base font-medium max-w-md ${theme === 'dark' ? 'text-gray-400' : 'text-slate-500'}`}>Establish your presence on the Arc L1 Network. Execute a zero-value smart contract transaction to build your immutable on-chain streak!</p>
+                  </div>
+                  
+                  <div className="flex flex-col w-full items-center gap-4 z-10 mt-4">
+                     <div className={`text-xl md:text-2xl font-black uppercase tracking-widest px-8 py-3 rounded-full border shadow-inner ${theme === 'dark' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-orange-100 text-orange-600 border-orange-300'}`}>
+                        {streak > 0 ? `Current Streak: ${streak} Days` : "No Streak Yet"}
+                     </div>
+                     <button 
+                        onClick={executeDailyGM}
+                        disabled={isCheckingIn || hasCheckedInToday || !wallet}
+                        className={`w-full max-w-sm rounded-2xl py-4 md:py-5 font-black text-lg md:text-xl transition-all duration-300 shadow-2xl mt-4 ${
+                           hasCheckedInToday 
+                              ? (theme === 'dark' ? "bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed" : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed") 
+                              : (theme === 'dark' ? "bg-white text-black hover:bg-gray-200 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.2)] animate-pulse hover:animate-none" : "bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md animate-pulse hover:animate-none")
+                        }`}
+                     >
+                        {isCheckingIn ? "Signing Transaction..." : hasCheckedInToday ? `Next GM in: ${timeLeft}` : "Say GM (Check-in)"}
+                     </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1065,7 +1071,7 @@ export default function Home() {
                     <div className="text-5xl md:text-7xl mb-4 md:mb-6 animate-pulse">🪪</div>
                     <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your Arc Pass</h2>
                     <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
-                    <button onClick={() => setSelectedTab("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
+                    <button onClick={() => handleTabSwitch("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
                       Register Domain Now
                     </button>
                   </div>
@@ -1225,7 +1231,7 @@ export default function Home() {
 
       {/* FOOTER & BUILDER SECTION */}
       <footer className={`mt-auto border-t py-8 md:py-12 backdrop-blur-2xl transition-colors duration-500 ${tc.footerBg}`}>
-        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-6 md:gap-8 px-6 md:flex-row">
+        <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-6 md:gap-8 px-6 md:flex-row">
           <div className={`text-xs md:text-sm font-bold tracking-widest uppercase text-center md:text-left ${tc.textMuted}`}>
             © 2026 ARC BANK · BUILD ON ARC
           </div>
@@ -1235,13 +1241,14 @@ export default function Home() {
               BUILD BY <span className={tc.textMain}>JUBAYIR69</span>
             </div>
             <div className="flex gap-3 md:gap-4">
-              <a href="https://x.com/jubayirhaider90" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              {/* DISCORD SVG REPLACES X */}
+              <a href="https://discordapp.com/users/1209377505442537484" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/></svg>
               </a>
-              <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
+              <a href="https://github.com/jubayir-hub-69" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
               </a>
-              <a href="https://www.linkedin.com/in/jubayir-haider-302aab372" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 ${tc.footerIcon}`}>
+              <a href="https://www.linkedin.com/in/jubayir-haider-302aab372" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.848-3.037-1.85 0-2.132 1.445-2.132 2.939v5.667H9.36V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
               </a>
             </div>
