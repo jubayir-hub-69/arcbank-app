@@ -438,16 +438,16 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // Resolve .arc domains to real addresses
+      // Resolve domains to real addresses
       const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
       
       const resolvedAddresses: string[] = [];
 
       for (let target of addresses) {
-        if (target.endsWith(".arc")) {
+        if (target.endsWith(".arcbank")) {
           showMessage(`Resolving domain ${target}...`);
-          const nameOnly = target.replace(".arc", "");
+          const nameOnly = target.replace(".arcbank", "");
           const isAvailable = await ansContract.isAvailable(nameOnly);
           
           if (isAvailable) {
@@ -656,13 +656,13 @@ export default function Home() {
       const receipt = await tx.wait();
       const txHash = receipt?.hash || tx?.hash || "";
 
-      const newDomain = `${cleanName}.arc`;
+      const newDomain = `${cleanName}.arcbank`;
       setRegisteredDomain(newDomain);
       setRegistrationHash(txHash);
       
       localStorage.setItem(`arcbank_domain_name_${wallet}`, newDomain);
 
-      addHistoryRecord("ARC Domain Registration", "Free", newDomain, "Completed", txHash);
+      addHistoryRecord("ArcBank Domain Registration", "Free", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
       triggerConfetti();
@@ -682,7 +682,7 @@ export default function Home() {
   };
 
   const shareOnX = () => {
-    const text = encodeURIComponent(`Minted a @arc domain pass! 🌐✨\n\nBUILD BY @jubayirhaider90\n\n`);
+    const text = encodeURIComponent(`Verified my domain identity.\n\nClean Web3 ID with on-chain daily GM streak using @ArcBank_ Pass.\n\nEnterprise-grade stablecoin & identity tools.\n\n`);
     const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
     window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
   };
@@ -696,12 +696,12 @@ export default function Home() {
       (window as any).domtoimage.toPng(element, { quality: 1, bgcolor: '#050B14', scale: 3 })
         .then((dataUrl: string) => {
           const link = document.createElement('a');
-          link.download = `${registeredDomain || 'arc'}-pass.png`;
+          link.download = `${registeredDomain || 'arcbank'}-pass.png`;
           link.href = dataUrl;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          showMessage("Arc Pass saved to your device! 📸");
+          showMessage("ArcBank Pass saved to your device! 📸");
         })
         .catch((err: any) => {
           console.error("Image Generation Error:", err);
@@ -781,7 +781,7 @@ export default function Home() {
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
             <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
             <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
-              <img src="/arc-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
+              <img src="/arcbank-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
             </div>
             <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
             <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered on <span className="text-cyan-400 font-bold">Arc Testnet</span>!</p>
@@ -868,13 +868,13 @@ export default function Home() {
             <div className="space-y-5">
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
-                  <span>Recipient {isBatchMode ? "Addresses or .arc names" : "Address or .arc name"}</span>
+                  <span>Recipient {isBatchMode ? "Addresses or .arcbank names" : "Address or .arcbank name"}</span>
                   {isBatchMode && <span className="text-[9px] text-orange-400">Separate with comma (,)</span>}
                 </label>
                 {isBatchMode ? (
-                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., jubayir.arc, 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
+                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., jubayir.arcbank, 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
                 ) : (
-                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="e.g., 0x... or jubayir.arc" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
+                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="e.g., 0x... or jubayir.arcbank" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
                 )}
               </div>
               <div>
@@ -925,10 +925,10 @@ export default function Home() {
             <span className="text-xl">🔥</span>
           </button>
           <button onClick={() => handleTabSwitch("domains")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "domains" ? tc.sidebarActive : tc.sidebarInactive}`}>
-            ARC Domains
+            ArcBank Domains
           </button>
           <button onClick={() => handleTabSwitch("arcpass")} className={`w-full rounded-2xl px-6 py-4 text-left flex justify-between items-center font-black tracking-wide transition-all border ${selectedTab === "arcpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
-            <span>Arc Pass</span>
+            <span>ArcBank Pass</span>
             <span className={`text-[10px] px-2 py-1 rounded-lg ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>NEW</span>
           </button>
           <button onClick={() => handleTabSwitch("history")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "history" ? tc.sidebarActive : tc.sidebarInactive}`}>
@@ -1069,8 +1069,8 @@ export default function Home() {
             {selectedTab === "domains" && (
               <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl shadow-2xl' : 'border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white shadow-xl'}`}>
                 <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-5' : 'opacity-[0.03]'}`}>🌐</div>
-                <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>ARC Web3 Identity</h2>
-                <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.arc</span> username on the blockchain and establish your lifetime identity.</p>
+                <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>ArcBank Web3 Identity</h2>
+                <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.arcbank</span> username on the blockchain and establish your lifetime identity.</p>
                 
                 <div className={`flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full bg-black border rounded-3xl sm:rounded-full p-2 pl-4 md:pl-6 transition-shadow ${theme === 'dark' ? 'border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:shadow-[0_0_40px_rgba(6,182,212,0.2)]' : 'border-cyan-300 shadow-md hover:shadow-lg'}`}>
                   <span className={`hidden sm:inline-block text-xl font-bold ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>∞</span>
@@ -1082,7 +1082,7 @@ export default function Home() {
                     className={`flex-1 w-full bg-transparent border-none text-lg md:text-xl font-bold focus:outline-none text-center sm:text-left py-2 sm:py-0 ${theme === 'dark' ? 'text-white placeholder-zinc-700' : 'text-slate-900 placeholder-slate-400'}`}
                   />
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arc</div>
+                    <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arcbank</div>
                     <button onClick={handleSearchDomain} disabled={isCheckingDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md disabled:opacity-50">
                       {isCheckingDomain ? "Checking..." : "Search →"}
                     </button>
@@ -1093,9 +1093,9 @@ export default function Home() {
                   <div className={`mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-between p-5 md:p-6 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 ${theme === 'dark' ? 'bg-cyan-950/30 border border-cyan-500/30' : 'bg-cyan-50 border border-cyan-200'}`}>
                     <div className="flex items-center gap-4 md:gap-5">
                       <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border border-cyan-200 shadow-sm'}`}>
-                        <img src="/arc-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
+                        <img src="/arcbank-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
                       </div>
-                      <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arc</div>
+                      <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arcbank</div>
                     </div>
                     <div className="flex items-center gap-4 md:gap-6 mt-4 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
                       <div className={`text-sm md:text-base font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>Free (Gas Only)</div>
@@ -1119,8 +1119,8 @@ export default function Home() {
                 {!registeredDomain ? (
                   <div className="text-center z-10 max-w-lg px-4">
                     <div className="text-5xl md:text-7xl mb-4 md:mb-6 animate-pulse">🪪</div>
-                    <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your Arc Pass</h2>
-                    <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arc domain to generate your exclusive Web3 Holographic Identity Card.</p>
+                    <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your ArcBank Pass</h2>
+                    <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arcbank domain to generate your exclusive Web3 Holographic Identity Card.</p>
                     <button onClick={() => handleTabSwitch("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
                       Register Domain Now
                     </button>
@@ -1139,9 +1139,9 @@ export default function Home() {
                       <div className="flex justify-between items-start w-full relative z-10">
                         <div className="flex items-center gap-2 md:gap-3">
                           <div className="w-8 h-8 md:w-10 md:h-10 bg-[#050B14] rounded-lg md:rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1 md:p-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                            <img src="/arc-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
+                            <img src="/arcbank-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
                           </div>
-                          <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">ARC PASS</div>
+                          <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">ARCBANK PASS</div>
                         </div>
                         <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[8px] md:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 md:gap-1.5">
                           <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
