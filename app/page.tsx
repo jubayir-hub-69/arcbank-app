@@ -683,8 +683,7 @@ export default function Home() {
 
   const shareOnX = () => {
     const text = encodeURIComponent(`Verified my domain identity.\n\nClean Web3 ID with on-chain daily GM streak using @ArcBank_ Pass.\n\nEnterprise-grade stablecoin & identity tools.\n\n`);
-    const url = encodeURIComponent(`https://arcbank-app.vercel.app`);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank");
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
   };
 
   const downloadArcPass = () => {
@@ -1245,6 +1244,39 @@ export default function Home() {
 
             {selectedTab === "learn" && (
               <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+                {/* NEW ARCBANK SECTION */}
+                <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden mb-6 md:mb-8 ${theme === 'dark' ? 'border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-cyan-200 bg-gradient-to-br from-cyan-50 to-white'}`}>
+                  <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>🏦</div>
+                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is ArcBank?</h2>
+                  <p className={`text-sm md:text-xl font-medium leading-relaxed max-w-3xl mb-6 md:mb-10 ${tc.textDesc}`}>
+                    ArcBank is an advanced Web3 Stablecoin Management and Identity Protocol. We make blockchain payments as simple as traditional banking by replacing complex addresses with human-readable <strong>.arcbank</strong> domains and offering enterprise-grade batch payment tools.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mt-8">
+                    <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                      <div className="text-2xl mb-2">🌐</div>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>ArcBank Name Service</h4>
+                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Register a permanent .arcbank domain to replace your long 0x wallet address.</p>
+                    </div>
+                    <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                      <div className="text-2xl mb-2">💸</div>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>Batch Transfers</h4>
+                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Send USDC or EURC to multiple domains simultaneously with our domain-resolved engine.</p>
+                    </div>
+                    <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                      <div className="text-2xl mb-2">🔗</div>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>Automated Invoicing</h4>
+                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Generate shareable payment links that auto-fill the exact recipient, asset, and amount.</p>
+                    </div>
+                    <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
+                      <div className="text-2xl mb-2">🪪</div>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>ArcBank Pass & Daily GM</h4>
+                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Build an on-chain streak and unlock your verifiable, holographic Web3 Identity Card.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ORIGINAL ARC NETWORK SECTION */}
                 <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden ${theme === 'dark' ? 'border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-blue-200 bg-gradient-to-br from-blue-50 to-white'}`}>
                   <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>📖</div>
                   <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is Arc Network?</h2>
@@ -1283,7 +1315,7 @@ export default function Home() {
       <footer className={`mt-auto border-t py-8 md:py-12 backdrop-blur-2xl transition-colors duration-500 ${tc.footerBg}`}>
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-6 md:gap-8 px-6 md:flex-row">
           <div className={`text-xs md:text-sm font-bold tracking-widest uppercase text-center md:text-left ${tc.textMuted}`}>
-            © 2026 ARC BANK · BUILD ON ARC
+            © 2026 ARC BANK · BUILD ON ARC NETWORK
           </div>
           
           <div className="flex flex-col items-center gap-3 md:gap-4 md:items-end">
@@ -1291,6 +1323,9 @@ export default function Home() {
               BUILD BY <span className={tc.textMain}>JUBAYIR69</span>
             </div>
             <div className="flex gap-3 md:gap-4">
+              <a href="https://x.com/ArcBank_" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              </a>
               <a href="https://discordapp.com/users/1209377505442537484" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/></svg>
               </a>
