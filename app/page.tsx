@@ -49,6 +49,7 @@ export default function Home() {
 
   // Send Modal
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // NEW: Confirmation Modal State
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
@@ -225,8 +226,17 @@ export default function Home() {
       setStreak(0);
     }
     
+    // Auto-migrate old .arc to .arcbank for Arc Pass Display
     const myDomain = localStorage.getItem(`arcbank_domain_name_${wallet}`);
-    if (myDomain) setRegisteredDomain(myDomain);
+    if (myDomain) {
+      if (myDomain.endsWith(".arc")) {
+        const updatedDomain = myDomain.replace(".arc", ".arcbank");
+        localStorage.setItem(`arcbank_domain_name_${wallet}`, updatedDomain);
+        setRegisteredDomain(updatedDomain);
+      } else {
+        setRegisteredDomain(myDomain);
+      }
+    }
   }, [wallet]);
 
   useEffect(() => {
@@ -275,6 +285,7 @@ export default function Home() {
         setIsBatchMode(false);
         setSendAddress("");
         setSendMemo("");
+        setShowConfirmModal(false);
         showMessage("Wallet Disconnected");
       } else {
         setWallet(accounts[0]);
@@ -369,6 +380,7 @@ export default function Home() {
     setIsBatchMode(false);
     setSendAddress("");
     setSendMemo("");
+    setShowConfirmModal(false);
     showMessage("Wallet Disconnected");
   };
 
@@ -415,8 +427,8 @@ export default function Home() {
     showMessage("Link copied to clipboard! 📋");
   };
 
-  // SEND & RESOLVE LOGIC INTEGRATED WITH SMART CONTRACT
-  const executeSend = async () => {
+  // NEW: Handle initial send click to show Confirmation Menu
+  const handleSendClick = () => {
     if (!wallet) return showMessage("Please connect wallet first to send");
     if (!sendAddress || !sendAmount) return showMessage("Please fill required fields");
     
@@ -424,6 +436,16 @@ export default function Home() {
     const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
 
     if (addresses.length === 0) return showMessage("Please enter at least one address");
+    
+    setShowConfirmModal(true); // Open confirmation modal
+  };
+
+  // SEND & RESOLVE LOGIC INTEGRATED WITH SMART CONTRACT
+  const executeSend = async () => {
+    setShowConfirmModal(false); // Close confirmation modal
+    
+    const rawAddresses = isBatchMode ? sendAddress.split(',') : [sendAddress];
+    const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
 
     if (!isArcTestnet) {
       showMessage("Switching to Arc Testnet...");
@@ -445,9 +467,14 @@ export default function Home() {
       const resolvedAddresses: string[] = [];
 
       for (let target of addresses) {
-        if (target.endsWith(".arcbank")) {
+        const lowerTarget = target.toLowerCase();
+        
+        // SUPPORT BOTH .arcbank AND .arc FOR BACKWARDS COMPATIBILITY
+        if (lowerTarget.endsWith(".arcbank") || lowerTarget.endsWith(".arc")) {
           showMessage(`Resolving domain ${target}...`);
-          const nameOnly = target.replace(".arcbank", "");
+          // Strip both extensions to get raw name
+          const nameOnly = lowerTarget.replace(/\.arcbank$|\.arc$/, "");
+          
           const isAvailable = await ansContract.isAvailable(nameOnly);
           
           if (isAvailable) {
@@ -584,7 +611,11 @@ export default function Home() {
 
   // SMART CONTRACT INTEGRATION: Check Domain Availability
   const handleSearchDomain = async () => {
-    const cleanSearch = domainSearch.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    let cleanSearch = domainSearch.trim().toLowerCase();
+    // Fix: Remove extension if user typed it accidentally
+    cleanSearch = cleanSearch.replace(/\.arcbank$|\.arc$/, "");
+    cleanSearch = cleanSearch.replace(/[^a-z0-9-]/g, '');
+
     if (!cleanSearch) return showMessage("Enter a valid domain name");
     
     setIsCheckingDomain(true);
@@ -646,7 +677,10 @@ export default function Home() {
       const signer = await provider.getSigner();
 
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, signer);
-      const cleanName = domainSearch.toLowerCase().replace(/[^a-z0-9-]/g, '');
+      
+      let cleanName = domainSearch.toLowerCase();
+      cleanName = cleanName.replace(/\.arcbank$|\.arc$/, "");
+      cleanName = cleanName.replace(/[^a-z0-9-]/g, '');
 
       showMessage("Confirm Registration in Wallet...");
       
@@ -844,6 +878,47 @@ export default function Home() {
         </div>
       )}
 
+      {/* NEW: PAYMENT CONFIRMATION MODAL */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className={`w-full max-w-sm rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 shadow-[0_0_50px_rgba(6,182,212,0.15)] ${tc.modalBg}`}>
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-4 animate-pulse">⚠️</div>
+              <h3 className={`text-xl font-black mb-2 ${tc.textMain}`}>Confirm Payment</h3>
+              <p className={`text-sm ${tc.textMuted}`}>Please verify the details below before sending. Transactions cannot be reversed.</p>
+            </div>
+
+            <div className={`rounded-2xl p-4 mb-6 border space-y-3 ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Asset</span>
+                <span className={`font-black text-lg ${tc.textMain}`}>{sendAmount} {sendAsset}</span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">To</span>
+                <div className="text-right">
+                  {isBatchMode ? (
+                    <span className={`text-sm font-mono font-bold ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>{sendAddress.split(',').length} Recipients</span>
+                  ) : (
+                    <span className={`text-sm font-mono font-bold break-all ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>{sendAddress}</span>
+                  )}
+                </div>
+              </div>
+              {sendMemo && (
+                <div className="flex justify-between items-center pt-2 border-t border-gray-500/20">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Memo</span>
+                  <span className={`text-xs font-medium ${tc.textMuted}`}>{sendMemo}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowConfirmModal(false)} className={`flex-1 rounded-xl py-3 font-bold transition-all border ${theme === 'dark' ? 'bg-gray-800 text-white border-transparent hover:bg-gray-700' : 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300'}`}>Cancel</button>
+              <button onClick={executeSend} className="flex-1 rounded-xl bg-cyan-500 text-white py-3 font-black hover:bg-cyan-400 transition-all shadow-lg active:scale-95">Confirm & Send</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SEND MODAL WITH DOMAIN SUPPORT */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -867,7 +942,7 @@ export default function Home() {
             <div className="space-y-5">
               <div>
                 <label className={`text-xs font-bold mb-2 flex justify-between uppercase tracking-widest ${tc.historyText}`}>
-                  <span>Recipient {isBatchMode ? "Addresses or .arcbank names" : "Address or .arcbank name"}</span>
+                  <span>Recipient {isBatchMode ? "Addresses or names" : "Address or name"}</span>
                   {isBatchMode && <span className="text-[9px] text-orange-400">Separate with comma (,)</span>}
                 </label>
                 {isBatchMode ? (
@@ -899,7 +974,7 @@ export default function Home() {
                 <input type="text" value={sendMemo} onChange={(e) => setSendMemo(e.target.value)} placeholder="Optional (e.g. Invoice #123)" className={`w-full rounded-2xl border px-5 py-3 focus:outline-none transition text-sm ${tc.inputBg}`} />
               </div>
 
-              <button onClick={executeSend} disabled={isSending || !sendAddress || !sendAmount} className="w-full rounded-2xl bg-cyan-500 text-white hover:bg-cyan-400 py-4 font-black text-lg transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 mt-2 shadow-xl">
+              <button onClick={handleSendClick} disabled={isSending || !sendAddress || !sendAmount} className="w-full rounded-2xl bg-cyan-500 text-white hover:bg-cyan-400 py-4 font-black text-lg transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 mt-2 shadow-xl">
                 {isSending ? "Processing..." : `Send ${sendAsset}`}
               </button>
             </div>
@@ -1076,7 +1151,13 @@ export default function Home() {
                   <input 
                     type="text" 
                     value={domainSearch}
-                    onChange={(e) => { setDomainSearch(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); setDomainAvailable(false); }}
+                    onChange={(e) => { 
+                      let val = e.target.value.toLowerCase();
+                      val = val.replace(/\.arcbank$|\.arc$/, "");
+                      val = val.replace(/[^a-z0-9-]/g, '');
+                      setDomainSearch(val); 
+                      setDomainAvailable(false); 
+                    }}
                     placeholder="Search a name (e.g. jubayir69)" 
                     className={`flex-1 w-full bg-transparent border-none text-lg md:text-xl font-bold focus:outline-none text-center sm:text-left py-2 sm:py-0 ${theme === 'dark' ? 'text-white placeholder-zinc-700' : 'text-slate-900 placeholder-slate-400'}`}
                   />
