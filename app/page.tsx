@@ -11,7 +11,7 @@ const ARC_FAUCET = "https://faucet.circle.com";
 
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
-// Your deployed TrustBank Name Service Contract (Previously ANS)
+// Your deployed TrustBank Name Service Contract
 const ANS_CONTRACT_ADDRESS = "0x68A2a776BaE48fd0bB7a409a9709d61A34Ced42c";
 
 const ERC20_ABI = [
@@ -33,6 +33,9 @@ type ActivityItem = {
   status: "Completed" | "Pending" | "Failed";
   txHash?: string;
 };
+
+// NEW: Helper function to prevent RPC Rate Limiting (Anti-Spam)
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function Home() {
   const [wallet, setWallet] = useState("");
@@ -108,7 +111,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Theme Migration & Setup
     const oldTheme = localStorage.getItem("arcbank_theme");
     if (oldTheme && !localStorage.getItem("trustbank_theme")) {
       localStorage.setItem("trustbank_theme", oldTheme);
@@ -210,7 +212,7 @@ export default function Home() {
   useEffect(() => {
     if (!wallet) return;
 
-    // --- SEAMLESS DATA MIGRATION SCRIPT (ArcBank -> TrustBank) ---
+    // Seamless Data Migration Script
     const oldStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
     if (oldStreak && !localStorage.getItem(`trustbank_streak_${wallet}`)) {
       localStorage.setItem(`trustbank_streak_${wallet}`, oldStreak);
@@ -227,7 +229,6 @@ export default function Home() {
     if (oldHistory && !localStorage.getItem(`trustbank_history_${wallet}`)) {
       localStorage.setItem(`trustbank_history_${wallet}`, oldHistory);
     }
-    // -------------------------------------------------------------
 
     const storedStreak = localStorage.getItem(`trustbank_streak_${wallet}`);
     const storedDate = localStorage.getItem(`trustbank_last_gm_${wallet}`);
@@ -312,7 +313,10 @@ export default function Home() {
         setTxHistory([]);
         showMessage("Wallet Disconnected");
       } else {
-        setWallet(accounts[0]);
+        const newWallet = accounts[0];
+        setWallet(newWallet);
+        const savedHistory = localStorage.getItem(`trustbank_history_${newWallet}`);
+        if (savedHistory) setTxHistory(JSON.parse(savedHistory));
       }
     };
 
@@ -329,7 +333,8 @@ export default function Home() {
   useEffect(() => {
     if (!wallet || !isArcTestnet) return;
     void fetchBalances(wallet);
-    const intervalId = setInterval(() => void fetchBalances(wallet, true), 8000);
+    // FIX 1: Increased interval from 8s to 15s to prevent RPC Rate Limiting
+    const intervalId = setInterval(() => void fetchBalances(wallet, true), 15000);
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances]);
 
@@ -474,7 +479,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await new Promise((res) => setTimeout(res, 1000)); 
+      await sleep(1000); 
     }
 
     try {
@@ -483,7 +488,6 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // Resolve domains to real addresses
       const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
       
@@ -492,25 +496,28 @@ export default function Home() {
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
-        // SUPPORT BACKWARDS COMPATIBILITY FOR OLD DOMAINS AND NEW .trust
         if (lowerTarget.endsWith(".trust") || lowerTarget.endsWith(".arcbank") || lowerTarget.endsWith(".arc")) {
           showMessage(`Resolving domain ${target}...`);
           const nameOnly = lowerTarget.replace(/\.trust$|\.arcbank$|\.arc$/, "");
           
           const isAvailable = await ansContract.isAvailable(nameOnly);
+          // FIX 2: Delay to prevent RPC Rate Limit while resolving
+          await sleep(300); 
           
           if (isAvailable) {
-            showMessage(`Domain ${target} is not registered by anyone.`);
+            showMessage(`Domain ${target} is not registered.`);
             setIsSending(false);
             return;
           }
           
           const resolvedAddress = await ansContract.resolve(nameOnly);
           resolvedAddresses.push(resolvedAddress);
+          await sleep(300); 
+
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
         } else {
-          showMessage(`Invalid address or domain format: ${target}`);
+          showMessage(`Invalid address format: ${target}`);
           setIsSending(false);
           return;
         }
@@ -563,6 +570,11 @@ export default function Home() {
           );
           successCount++;
 
+          // FIX 3: Wait 1 second between batch transactions to prevent Rabby Wallet Gas Error / RPC Limit
+          if (isBatchMode && i < resolvedAddresses.length - 1) {
+            await sleep(1000); 
+          }
+
         } catch (txError) {
           console.error("Transaction Error:", txError);
           showMessage(`Failed to send to ${displayTarget}`);
@@ -584,7 +596,7 @@ export default function Home() {
 
     } catch (error) {
       console.error(error);
-      showMessage("Operation failed or rejected");
+      showMessage("Operation failed or rejected. Try again in a few seconds.");
     } finally {
       setIsSending(false);
     }
@@ -596,7 +608,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await new Promise((res) => setTimeout(res, 1000));
+      await sleep(1000);
     }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
@@ -686,7 +698,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await new Promise((res) => setTimeout(res, 1000));
+      await sleep(1000);
     }
 
     try {
