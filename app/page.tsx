@@ -534,7 +534,7 @@ export default function Home() {
             `-${sendAmount} ${sendAsset}`, 
             `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
             "Completed", 
-            tx.hash
+            tx?.hash || ""
           );
           successCount++;
 
@@ -587,7 +587,6 @@ export default function Home() {
       const tx = await signer.sendTransaction({ to: wallet, value: 0 });
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
-      const receipt = await tx.wait();
       
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
@@ -597,7 +596,7 @@ export default function Home() {
       localStorage.setItem(`trustbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", receipt.hash);
+      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", tx?.hash || "");
       
       void fetchBalances(wallet); 
     } catch (error) {
@@ -681,15 +680,14 @@ export default function Home() {
       const tx = await ansContract.register(cleanName);
 
       showMessage("Registering domain on Arc Network...");
-      const receipt = await tx.wait();
 
       const newDomain = `${cleanName}.trust`;
       setRegisteredDomain(newDomain);
-      setRegistrationHash(receipt.hash);
+      setRegistrationHash(tx?.hash || "");
       
       localStorage.setItem(`trustbank_domain_name_${wallet}`, newDomain);
 
-      addHistoryRecord("TrustBank Domain Registration", "Free", newDomain, "Completed", receipt.hash);
+      addHistoryRecord("TrustBank Domain Registration", "Free", newDomain, "Completed", tx?.hash || "");
       
       setShowDomainSuccess(true);
       triggerConfetti();
