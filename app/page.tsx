@@ -34,7 +34,6 @@ type ActivityItem = {
   txHash?: string;
 };
 
-// Helper function to prevent RPC Rate Limiting (Anti-Spam)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function Home() {
@@ -175,7 +174,6 @@ export default function Home() {
     if (!address) return;
     try {
       if (!isSilentRefresh) setBalancesLoading(true);
-      // Added staticNetwork to prevent ethers.js from making extra chainId RPC calls
       const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
       const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, rpcProvider);
 
@@ -213,7 +211,6 @@ export default function Home() {
   useEffect(() => {
     if (!wallet) return;
 
-    // Seamless Data Migration Script
     const oldStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
     if (oldStreak && !localStorage.getItem(`trustbank_streak_${wallet}`)) {
       localStorage.setItem(`trustbank_streak_${wallet}`, oldStreak);
@@ -331,11 +328,11 @@ export default function Home() {
     };
   }, []);
 
-  // ROOT CAUSE FIX 1: Fully pause background RPC calls when Send Modal is open to protect Rabby
+  // ব্যালেন্স রিলোড পজ করা হয়েছে সেন্ড মডাল ওপেন থাকলে (সার্ভার ফ্রি রাখার জন্য)
   useEffect(() => {
     if (!wallet || !isArcTestnet || isSending || showSendModal) return;
     void fetchBalances(wallet);
-    const intervalId = setInterval(() => void fetchBalances(wallet, true), 20000); // 20s interval
+    const intervalId = setInterval(() => void fetchBalances(wallet, true), 20000);
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances, isSending, showSendModal]);
 
@@ -489,19 +486,17 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      // Using staticNetwork prevents extra chainId polling calls under the hood
       const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
       
       const resolvedAddresses: string[] = [];
 
-      // Resolving Loop
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
-        // STRICTLY ONLY ALLOW .trust
+        // শুধুমাত্র .trust সাপোর্ট
         if (lowerTarget.endsWith(".trust")) {
-          showMessage(`Checking domain ${target}...`);
+          showMessage(`Resolving ${target}...`);
           const nameOnly = lowerTarget.replace(/\.trust$/, "");
           
           try {
@@ -517,8 +512,7 @@ export default function Home() {
              setIsSending(false);
              return;
           }
-          // ROOT CAUSE FIX 2: Solid 2-second sleep between domain checks to protect RPC Limit
-          await sleep(2000); 
+          await sleep(500); 
 
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
@@ -529,87 +523,90 @@ export default function Home() {
         }
       }
 
-      if (resolvedAddresses.length > 0) {
-         showMessage("Preparing secure transaction...");
-         // ROOT CAUSE FIX 3: 2-second cooldown so RPC server is totally free before Rabby Gas Check
-         await sleep(2000); 
-      }
-
+      showMessage("Preparing secure transaction...");
+      
+      // 🚀 MASTER FIX: RPC-কে স্প্যাম থেকে বাঁচাতে Gas ও Nonce একবার কল করা হলো
+      const currentNonce = await signer.getNonce("pending");
+      const feeData = await provider.getFeeData();
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
       let successCount = 0;
 
-      // Sending Loop
       for (let i = 0; i < resolvedAddresses.length; i++) {
         const currentTarget = resolvedAddresses[i];
         const displayTarget = addresses[i];
 
-        if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${resolvedAddresses.length}...`);
+        if (isBatchMode) showMessage(`Signing ${i+1} of ${resolvedAddresses.length} in wallet...`);
         else showMessage("Confirm transaction in your wallet...");
 
         try {
-          let tx: any;
+          let txReq: any;
 
+          // ম্যানুয়ালি Gas এবং Nonce ট্রানজেকশনে পাস করা হচ্ছে 
           if (sendAsset === "USDC") {
             const parsedAmount = ethers.parseUnits(sendAmount, 18);
-            tx = await signer.sendTransaction({ 
-              to: currentTarget, 
+            txReq = {
+              to: currentTarget,
               value: parsedAmount,
-              data: memoHex 
-            });
+              data: memoHex,
+              nonce: currentNonce + i,
+              maxFeePerGas: feeData.maxFeePerGas,
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
+            };
           } else {
             const parsedAmount = ethers.parseUnits(sendAmount, 6);
             const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
             const transferData = contract.interface.encodeFunctionData("transfer", [currentTarget, parsedAmount]);
             const finalData = memoBytes ? transferData + memoBytes : transferData;
 
-            tx = await signer.sendTransaction({
+            txReq = {
               to: EURC_ADDRESS,
-              data: finalData
-            });
+              data: finalData,
+              nonce: currentNonce + i,
+              maxFeePerGas: feeData.maxFeePerGas,
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
+            };
           }
-          
-          showMessage(`Sending ${sendAsset} to ${displayTarget.slice(0,10)}...`);
-          const receipt = await tx.wait();
-          const txHash = receipt?.hash || tx?.hash || "";
-          
+
+          // tx.wait() রিমুভ করা হয়েছে যাতে সার্ভার স্প্যাম না হয়
+          const tx = await signer.sendTransaction(txReq);
+
           addHistoryRecord(
-            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
-            `-${sendAmount} ${sendAsset}`, 
-            `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
-            "Completed", 
-            txHash
+            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`,
+            `-${sendAmount} ${sendAsset}`,
+            `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`,
+            "Completed",
+            tx.hash
           );
           successCount++;
 
-          // ROOT CAUSE FIX 4: Massive 3-second cooldown between batch transactions
-          if (isBatchMode && i < resolvedAddresses.length - 1) {
-            showMessage("Cooling down network for next transfer...");
-            await sleep(3000); 
-          }
-
         } catch (txError) {
           console.error("Transaction Error:", txError);
-          showMessage(`Failed to send to ${displayTarget}`);
-          addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, `Failed: ${displayTarget}`, "Failed");
+          // ভুল লগ ফিক্স: ব্যাচ মোডে ফেইল হলেও এখন সঠিক নাম দেখাবে
+          addHistoryRecord(
+            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`,
+            `${sendAmount} ${sendAsset}`,
+            `Failed: ${displayTarget}`,
+            "Failed"
+          );
         }
       }
       
       if (successCount > 0) {
-        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${resolvedAddresses.length} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${resolvedAddresses.length} sent! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
         setShowSendModal(false);
         setSendAddress("");
         setSendAmount("");
         setSendMemo("");
         setIsBatchMode(false);
       } else {
-        showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
+        showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} succeeded.` : `Transaction failed or rejected.`);
       }
 
     } catch (error) {
       console.error(error);
-      showMessage("Operation failed. Testnet RPC might be busy.");
+      showMessage("Operation failed. Check wallet connection.");
     } finally {
       setIsSending(false);
     }
@@ -658,7 +655,7 @@ export default function Home() {
 
   const handleSearchDomain = async () => {
     let cleanSearch = domainSearch.trim().toLowerCase();
-    // STRICTLY ONLY REMOVE .trust
+    // শুধুমাত্র .trust রিমুভ করার লজিক
     cleanSearch = cleanSearch.replace(/\.trust$/, "");
     cleanSearch = cleanSearch.replace(/[^a-z0-9-]/g, '');
 
@@ -724,7 +721,6 @@ export default function Home() {
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, signer);
       
       let cleanName = domainSearch.toLowerCase();
-      // STRICTLY ONLY REMOVE .trust
       cleanName = cleanName.replace(/\.trust$/, "");
       cleanName = cleanName.replace(/[^a-z0-9-]/g, '');
 
