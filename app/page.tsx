@@ -175,7 +175,8 @@ export default function Home() {
     if (!address) return;
     try {
       if (!isSilentRefresh) setBalancesLoading(true);
-      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
+      // Added staticNetwork to prevent ethers.js from making extra chainId RPC calls
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
       const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, rpcProvider);
 
       const start = Date.now();
@@ -330,12 +331,13 @@ export default function Home() {
     };
   }, []);
 
+  // ROOT CAUSE FIX 1: Fully pause background RPC calls when Send Modal is open to protect Rabby
   useEffect(() => {
-    if (!wallet || !isArcTestnet || isSending) return;
+    if (!wallet || !isArcTestnet || isSending || showSendModal) return;
     void fetchBalances(wallet);
-    const intervalId = setInterval(() => void fetchBalances(wallet, true), 15000);
+    const intervalId = setInterval(() => void fetchBalances(wallet, true), 20000); // 20s interval
     return () => clearInterval(intervalId);
-  }, [wallet, isArcTestnet, fetchBalances, isSending]);
+  }, [wallet, isArcTestnet, fetchBalances, isSending, showSendModal]);
 
   const switchToArcTestnet = async () => {
     const ethereum = getEthereum();
@@ -487,17 +489,19 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
+      // Using staticNetwork prevents extra chainId polling calls under the hood
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
       
       const resolvedAddresses: string[] = [];
 
+      // Resolving Loop
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
         // STRICTLY ONLY ALLOW .trust
         if (lowerTarget.endsWith(".trust")) {
-          showMessage(`Resolving domain ${target}...`);
+          showMessage(`Checking domain ${target}...`);
           const nameOnly = lowerTarget.replace(/\.trust$/, "");
           
           try {
@@ -513,20 +517,22 @@ export default function Home() {
              setIsSending(false);
              return;
           }
-          await sleep(400); 
+          // ROOT CAUSE FIX 2: Solid 2-second sleep between domain checks to protect RPC Limit
+          await sleep(2000); 
 
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
         } else {
-          showMessage(`Invalid address or domain format: ${target}`);
+          showMessage(`Invalid address format: ${target}`);
           setIsSending(false);
           return;
         }
       }
 
       if (resolvedAddresses.length > 0) {
-         showMessage("Preparing wallet...");
-         await sleep(1500); 
+         showMessage("Preparing secure transaction...");
+         // ROOT CAUSE FIX 3: 2-second cooldown so RPC server is totally free before Rabby Gas Check
+         await sleep(2000); 
       }
 
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
@@ -534,6 +540,7 @@ export default function Home() {
 
       let successCount = 0;
 
+      // Sending Loop
       for (let i = 0; i < resolvedAddresses.length; i++) {
         const currentTarget = resolvedAddresses[i];
         const displayTarget = addresses[i];
@@ -576,8 +583,10 @@ export default function Home() {
           );
           successCount++;
 
+          // ROOT CAUSE FIX 4: Massive 3-second cooldown between batch transactions
           if (isBatchMode && i < resolvedAddresses.length - 1) {
-            await sleep(1000); 
+            showMessage("Cooling down network for next transfer...");
+            await sleep(3000); 
           }
 
         } catch (txError) {
