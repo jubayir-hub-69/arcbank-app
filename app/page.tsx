@@ -34,7 +34,7 @@ type ActivityItem = {
   txHash?: string;
 };
 
-// NEW: Helper function to prevent RPC Rate Limiting (Anti-Spam)
+// Helper function to prevent RPC Rate Limiting (Anti-Spam)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function Home() {
@@ -331,12 +331,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!wallet || !isArcTestnet) return;
+    if (!wallet || !isArcTestnet || isSending) return;
     void fetchBalances(wallet);
-    // FIX 1: Increased interval from 8s to 15s to prevent RPC Rate Limiting
     const intervalId = setInterval(() => void fetchBalances(wallet, true), 15000);
     return () => clearInterval(intervalId);
-  }, [wallet, isArcTestnet, fetchBalances]);
+  }, [wallet, isArcTestnet, fetchBalances, isSending]);
 
   const switchToArcTestnet = async () => {
     const ethereum = getEthereum();
@@ -496,31 +495,38 @@ export default function Home() {
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
-        if (lowerTarget.endsWith(".trust") || lowerTarget.endsWith(".arcbank") || lowerTarget.endsWith(".arc")) {
+        // STRICTLY ONLY ALLOW .trust
+        if (lowerTarget.endsWith(".trust")) {
           showMessage(`Resolving domain ${target}...`);
-          const nameOnly = lowerTarget.replace(/\.trust$|\.arcbank$|\.arc$/, "");
+          const nameOnly = lowerTarget.replace(/\.trust$/, "");
           
-          const isAvailable = await ansContract.isAvailable(nameOnly);
-          // FIX 2: Delay to prevent RPC Rate Limit while resolving
-          await sleep(300); 
-          
-          if (isAvailable) {
-            showMessage(`Domain ${target} is not registered.`);
-            setIsSending(false);
-            return;
+          try {
+             const resolvedAddress = await ansContract.resolve(nameOnly);
+             if (!resolvedAddress || resolvedAddress === ethers.ZeroAddress) {
+                showMessage(`Domain ${target} is not registered.`);
+                setIsSending(false);
+                return;
+             }
+             resolvedAddresses.push(resolvedAddress);
+          } catch (e) {
+             showMessage(`Domain ${target} could not be resolved.`);
+             setIsSending(false);
+             return;
           }
-          
-          const resolvedAddress = await ansContract.resolve(nameOnly);
-          resolvedAddresses.push(resolvedAddress);
-          await sleep(300); 
+          await sleep(400); 
 
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
         } else {
-          showMessage(`Invalid address format: ${target}`);
+          showMessage(`Invalid address or domain format: ${target}`);
           setIsSending(false);
           return;
         }
+      }
+
+      if (resolvedAddresses.length > 0) {
+         showMessage("Preparing wallet...");
+         await sleep(1500); 
       }
 
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
@@ -570,7 +576,6 @@ export default function Home() {
           );
           successCount++;
 
-          // FIX 3: Wait 1 second between batch transactions to prevent Rabby Wallet Gas Error / RPC Limit
           if (isBatchMode && i < resolvedAddresses.length - 1) {
             await sleep(1000); 
           }
@@ -589,14 +594,13 @@ export default function Home() {
         setSendAmount("");
         setSendMemo("");
         setIsBatchMode(false);
-        void fetchBalances(wallet);
       } else {
         showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
       }
 
     } catch (error) {
       console.error(error);
-      showMessage("Operation failed or rejected. Try again in a few seconds.");
+      showMessage("Operation failed. Testnet RPC might be busy.");
     } finally {
       setIsSending(false);
     }
@@ -645,7 +649,8 @@ export default function Home() {
 
   const handleSearchDomain = async () => {
     let cleanSearch = domainSearch.trim().toLowerCase();
-    cleanSearch = cleanSearch.replace(/\.trust$|\.arcbank$|\.arc$/, "");
+    // STRICTLY ONLY REMOVE .trust
+    cleanSearch = cleanSearch.replace(/\.trust$/, "");
     cleanSearch = cleanSearch.replace(/[^a-z0-9-]/g, '');
 
     if (!cleanSearch) return showMessage("Enter a valid domain name");
@@ -710,7 +715,8 @@ export default function Home() {
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, signer);
       
       let cleanName = domainSearch.toLowerCase();
-      cleanName = cleanName.replace(/\.trust$|\.arcbank$|\.arc$/, "");
+      // STRICTLY ONLY REMOVE .trust
+      cleanName = cleanName.replace(/\.trust$/, "");
       cleanName = cleanName.replace(/[^a-z0-9-]/g, '');
 
       showMessage("Confirm Registration in Wallet...");
@@ -1176,7 +1182,7 @@ export default function Home() {
                     value={domainSearch}
                     onChange={(e) => { 
                       let val = e.target.value.toLowerCase();
-                      val = val.replace(/\.trust$|\.arcbank$|\.arc$/, "");
+                      val = val.replace(/\.trust$/, "");
                       val = val.replace(/[^a-z0-9-]/g, '');
                       setDomainSearch(val); 
                       setDomainAvailable(false); 
