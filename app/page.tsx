@@ -34,8 +34,6 @@ type ActivityItem = {
   txHash?: string;
 };
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
@@ -49,7 +47,6 @@ export default function Home() {
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
-  // Send Modal
   const [showSendModal, setShowSendModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -59,19 +56,16 @@ export default function Home() {
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
-  // Request Payment Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestAsset, setRequestAsset] = useState<"USDC" | "EURC">("USDC");
   const [paymentLink, setPaymentLink] = useState("");
 
-  // Daily GM
   const [streak, setStreak] = useState(0);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // Domains Feature
   const [domainSearch, setDomainSearch] = useState("");
   const [domainAvailable, setDomainAvailable] = useState(false);
   const [isCheckingDomain, setIsCheckingDomain] = useState(false);
@@ -147,10 +141,8 @@ export default function Home() {
     if (eth.providers && eth.providers.length > 0) {
       const rabby = eth.providers.find((p: any) => p.isRabby);
       if (rabby) return rabby;
-      
       const metaMask = eth.providers.find((p: any) => p.isMetaMask && !p.isPhantom);
       if (metaMask) return metaMask;
-      
       return eth.providers[0]; 
     }
     return eth;
@@ -210,23 +202,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!wallet) return;
-
-    const oldStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
-    if (oldStreak && !localStorage.getItem(`trustbank_streak_${wallet}`)) {
-      localStorage.setItem(`trustbank_streak_${wallet}`, oldStreak);
-      localStorage.setItem(`trustbank_last_gm_${wallet}`, localStorage.getItem(`arcbank_last_gm_${wallet}`) || "");
-    }
-
-    const oldDomain = localStorage.getItem(`arcbank_domain_name_${wallet}`);
-    if (oldDomain && !localStorage.getItem(`trustbank_domain_name_${wallet}`)) {
-      const migratedDomain = oldDomain.replace(".arcbank", ".trust").replace(".arc", ".trust");
-      localStorage.setItem(`trustbank_domain_name_${wallet}`, migratedDomain);
-    }
-
-    const oldHistory = localStorage.getItem(`arcbank_history_${wallet}`);
-    if (oldHistory && !localStorage.getItem(`trustbank_history_${wallet}`)) {
-      localStorage.setItem(`trustbank_history_${wallet}`, oldHistory);
-    }
 
     const storedStreak = localStorage.getItem(`trustbank_streak_${wallet}`);
     const storedDate = localStorage.getItem(`trustbank_last_gm_${wallet}`);
@@ -328,11 +303,10 @@ export default function Home() {
     };
   }, []);
 
-  // ব্যালেন্স রিলোড পজ করা হয়েছে সেন্ড মডাল ওপেন থাকলে (সার্ভার ফ্রি রাখার জন্য)
   useEffect(() => {
     if (!wallet || !isArcTestnet || isSending || showSendModal) return;
     void fetchBalances(wallet);
-    const intervalId = setInterval(() => void fetchBalances(wallet, true), 20000);
+    const intervalId = setInterval(() => void fetchBalances(wallet, true), 15000);
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances, isSending, showSendModal]);
 
@@ -477,7 +451,6 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await sleep(1000); 
     }
 
     try {
@@ -494,7 +467,6 @@ export default function Home() {
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
-        // শুধুমাত্র .trust সাপোর্ট
         if (lowerTarget.endsWith(".trust")) {
           showMessage(`Resolving ${target}...`);
           const nameOnly = lowerTarget.replace(/\.trust$/, "");
@@ -512,8 +484,6 @@ export default function Home() {
              setIsSending(false);
              return;
           }
-          await sleep(500); 
-
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
         } else {
@@ -523,11 +493,6 @@ export default function Home() {
         }
       }
 
-      showMessage("Preparing secure transaction...");
-      
-      // 🚀 MASTER FIX: RPC-কে স্প্যাম থেকে বাঁচাতে Gas ও Nonce একবার কল করা হলো
-      const currentNonce = await signer.getNonce("pending");
-      const feeData = await provider.getFeeData();
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
@@ -537,57 +502,48 @@ export default function Home() {
         const currentTarget = resolvedAddresses[i];
         const displayTarget = addresses[i];
 
-        if (isBatchMode) showMessage(`Signing ${i+1} of ${resolvedAddresses.length} in wallet...`);
+        if (isBatchMode) showMessage(`Transaction ${i+1} of ${resolvedAddresses.length}: Please sign in wallet...`);
         else showMessage("Confirm transaction in your wallet...");
 
         try {
-          let txReq: any;
+          let tx: any;
 
-          // ম্যানুয়ালি Gas এবং Nonce ট্রানজেকশনে পাস করা হচ্ছে 
           if (sendAsset === "USDC") {
             const parsedAmount = ethers.parseUnits(sendAmount, 18);
-            txReq = {
+            tx = await signer.sendTransaction({
               to: currentTarget,
               value: parsedAmount,
-              data: memoHex,
-              nonce: currentNonce + i,
-              maxFeePerGas: feeData.maxFeePerGas,
-              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
-            };
+              data: memoHex
+            });
           } else {
             const parsedAmount = ethers.parseUnits(sendAmount, 6);
             const contract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
             const transferData = contract.interface.encodeFunctionData("transfer", [currentTarget, parsedAmount]);
             const finalData = memoBytes ? transferData + memoBytes : transferData;
 
-            txReq = {
+            tx = await signer.sendTransaction({
               to: EURC_ADDRESS,
-              data: finalData,
-              nonce: currentNonce + i,
-              maxFeePerGas: feeData.maxFeePerGas,
-              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
-            };
+              data: finalData
+            });
           }
-
-          // tx.wait() রিমুভ করা হয়েছে যাতে সার্ভার স্প্যাম না হয়
-          const tx = await signer.sendTransaction(txReq);
-
+          
+          showMessage(`Broadcasting ${sendAsset} to network...`);
+          
           addHistoryRecord(
-            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`,
-            `-${sendAmount} ${sendAsset}`,
-            `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`,
-            "Completed",
+            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
+            `-${sendAmount} ${sendAsset}`, 
+            `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
+            "Completed", 
             tx.hash
           );
           successCount++;
 
         } catch (txError) {
           console.error("Transaction Error:", txError);
-          // ভুল লগ ফিক্স: ব্যাচ মোডে ফেইল হলেও এখন সঠিক নাম দেখাবে
           addHistoryRecord(
-            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`,
-            `${sendAmount} ${sendAsset}`,
-            `Failed: ${displayTarget}`,
+            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
+            `${sendAmount} ${sendAsset}`, 
+            `Failed: ${displayTarget}`, 
             "Failed"
           );
         }
@@ -618,7 +574,6 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await sleep(1000);
     }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
@@ -633,8 +588,7 @@ export default function Home() {
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
-      const txHash = receipt?.hash || tx?.hash || "";
-
+      
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
@@ -643,7 +597,7 @@ export default function Home() {
       localStorage.setItem(`trustbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
+      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", receipt.hash);
       
       void fetchBalances(wallet); 
     } catch (error) {
@@ -655,7 +609,6 @@ export default function Home() {
 
   const handleSearchDomain = async () => {
     let cleanSearch = domainSearch.trim().toLowerCase();
-    // শুধুমাত্র .trust রিমুভ করার লজিক
     cleanSearch = cleanSearch.replace(/\.trust$/, "");
     cleanSearch = cleanSearch.replace(/[^a-z0-9-]/g, '');
 
@@ -709,7 +662,6 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
-      await sleep(1000);
     }
 
     try {
@@ -730,15 +682,14 @@ export default function Home() {
 
       showMessage("Registering domain on Arc Network...");
       const receipt = await tx.wait();
-      const txHash = receipt?.hash || tx?.hash || "";
 
       const newDomain = `${cleanName}.trust`;
       setRegisteredDomain(newDomain);
-      setRegistrationHash(txHash);
+      setRegistrationHash(receipt.hash);
       
       localStorage.setItem(`trustbank_domain_name_${wallet}`, newDomain);
 
-      addHistoryRecord("TrustBank Domain Registration", "Free", newDomain, "Completed", txHash);
+      addHistoryRecord("TrustBank Domain Registration", "Free", newDomain, "Completed", receipt.hash);
       
       setShowDomainSuccess(true);
       triggerConfetti();
