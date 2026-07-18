@@ -33,6 +33,8 @@ type ActivityItem = {
   txHash?: string;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
@@ -302,10 +304,11 @@ export default function Home() {
     };
   }, []);
 
+  // Fix 1: Pause background refresh during sending
   useEffect(() => {
     if (!wallet || !isArcTestnet || isSending || showSendModal) return;
     void fetchBalances(wallet);
-    const intervalId = setInterval(() => void fetchBalances(wallet, true), 15000);
+    const intervalId = setInterval(() => void fetchBalances(wallet, true), 8000);
     return () => clearInterval(intervalId);
   }, [wallet, isArcTestnet, fetchBalances, isSending, showSendModal]);
 
@@ -495,14 +498,19 @@ export default function Home() {
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
-      // 🚨 MASTER FIX: সার্ভার লিমিট বাইপাস করার জন্য ম্যানুয়ালি Nonce (সিরিয়াল) নেওয়া হলো
-      const baseNonce = await provider.getTransactionCount(wallet, "pending");
-
       let successCount = 0;
 
       for (let i = 0; i < resolvedAddresses.length; i++) {
         const currentTarget = resolvedAddresses[i];
         const displayTarget = addresses[i];
+
+        // Fix 2: Add 8-second delay before all subsequent transactions in the batch
+        if (i > 0) {
+          for (let s = 8; s > 0; s--) {
+            showMessage(`Preparing transaction ${i + 1} of ${resolvedAddresses.length}... (${s}s)`);
+            await sleep(1000);
+          }
+        }
 
         if (isBatchMode) showMessage(`Transaction ${i+1} of ${resolvedAddresses.length}: Please sign in wallet...`);
         else showMessage("Confirm transaction in your wallet...");
@@ -510,16 +518,12 @@ export default function Home() {
         try {
           let tx: any;
 
-          // 🚨 MASTER FIX: প্রতিটি ট্রানজেকশনে Nonce ম্যানুয়ালি +1 করে দেওয়া হচ্ছে
-          const currentTxNonce = baseNonce + i;
-
           if (sendAsset === "USDC") {
             const parsedAmount = ethers.parseUnits(sendAmount, 18);
             tx = await signer.sendTransaction({
               to: currentTarget,
               value: parsedAmount,
-              data: memoHex,
-              nonce: currentTxNonce
+              data: memoHex
             });
           } else {
             const parsedAmount = ethers.parseUnits(sendAmount, 6);
@@ -529,19 +533,20 @@ export default function Home() {
 
             tx = await signer.sendTransaction({
               to: EURC_ADDRESS,
-              data: finalData,
-              nonce: currentTxNonce
+              data: finalData
             });
           }
           
           showMessage(`Broadcasting ${sendAsset} to network...`);
           
+          const receipt = await tx.wait();
+
           addHistoryRecord(
             isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
             `-${sendAmount} ${sendAsset}`, 
             `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
             "Completed", 
-            tx?.hash || ""
+            receipt?.hash || ""
           );
           successCount++;
 
