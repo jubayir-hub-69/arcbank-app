@@ -11,7 +11,6 @@ const ARC_FAUCET = "https://faucet.circle.com";
 
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
-// Your deployed TrustBank Name Service Contract
 const ANS_CONTRACT_ADDRESS = "0x68A2a776BaE48fd0bB7a409a9709d61A34Ced42c";
 
 const ERC20_ABI = [
@@ -33,9 +32,6 @@ type ActivityItem = {
   status: "Completed" | "Pending" | "Failed";
   txHash?: string;
 };
-
-// Helper function to prevent RPC Rate Limiting
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function Home() {
   const [wallet, setWallet] = useState("");
@@ -499,6 +495,9 @@ export default function Home() {
       const memoHex = sendMemo ? ethers.hexlify(ethers.toUtf8Bytes(sendMemo)) : "0x";
       const memoBytes = sendMemo ? memoHex.replace("0x", "") : "";
 
+      // 🚨 MASTER FIX: সার্ভার লিমিট বাইপাস করার জন্য ম্যানুয়ালি Nonce (সিরিয়াল) নেওয়া হলো
+      const baseNonce = await provider.getTransactionCount(wallet, "pending");
+
       let successCount = 0;
 
       for (let i = 0; i < resolvedAddresses.length; i++) {
@@ -511,12 +510,16 @@ export default function Home() {
         try {
           let tx: any;
 
+          // 🚨 MASTER FIX: প্রতিটি ট্রানজেকশনে Nonce ম্যানুয়ালি +1 করে দেওয়া হচ্ছে
+          const currentTxNonce = baseNonce + i;
+
           if (sendAsset === "USDC") {
             const parsedAmount = ethers.parseUnits(sendAmount, 18);
             tx = await signer.sendTransaction({
               to: currentTarget,
               value: parsedAmount,
-              data: memoHex
+              data: memoHex,
+              nonce: currentTxNonce
             });
           } else {
             const parsedAmount = ethers.parseUnits(sendAmount, 6);
@@ -526,27 +529,21 @@ export default function Home() {
 
             tx = await signer.sendTransaction({
               to: EURC_ADDRESS,
-              data: finalData
+              data: finalData,
+              nonce: currentTxNonce
             });
           }
           
           showMessage(`Broadcasting ${sendAsset} to network...`);
           
-          const receipt = await tx.wait();
-
           addHistoryRecord(
             isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
             `-${sendAmount} ${sendAsset}`, 
             `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
             "Completed", 
-            receipt?.hash || ""
+            tx?.hash || ""
           );
           successCount++;
-
-          if (isBatchMode && i < resolvedAddresses.length - 1) {
-             showMessage("Cooling down for next transaction...");
-             await sleep(3000); 
-          }
 
         } catch (txError) {
           console.error("Transaction Error:", txError);
