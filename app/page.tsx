@@ -11,6 +11,7 @@ const ARC_FAUCET = "https://faucet.circle.com";
 
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
+// NEW: Your deployed Arc Name Service Contract
 const ANS_CONTRACT_ADDRESS = "0x68A2a776BaE48fd0bB7a409a9709d61A34Ced42c";
 
 const ERC20_ABI = [
@@ -33,14 +34,12 @@ type ActivityItem = {
   txHash?: string;
 };
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export default function Home() {
   const [wallet, setWallet] = useState("");
   const [message, setMessage] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
   
-  const [selectedTab, setSelectedTab] = useState<"overview" | "dailygm" | "domains" | "trustpass" | "history" | "learn">("overview");
+  const [selectedTab, setSelectedTab] = useState<"overview" | "dailygm" | "domains" | "arcpass" | "history" | "learn">("overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
@@ -48,8 +47,9 @@ export default function Home() {
   const [eurcBalance, setEurcBalance] = useState("0.00");
   const [balancesLoading, setBalancesLoading] = useState(false);
 
+  // Send Modal
   const [showSendModal, setShowSendModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false); // NEW: Confirmation Modal State
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
@@ -57,16 +57,19 @@ export default function Home() {
   const [sendAsset, setSendAsset] = useState<"USDC" | "EURC">("USDC");
   const [isSending, setIsSending] = useState(false);
 
+  // Request Payment Modal
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestAmount, setRequestAmount] = useState("");
   const [requestAsset, setRequestAsset] = useState<"USDC" | "EURC">("USDC");
   const [paymentLink, setPaymentLink] = useState("");
 
+  // Daily GM
   const [streak, setStreak] = useState(0);
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [timeLeft, setTimeLeft] = useState("");
 
+  // ARC Domains Feature
   const [domainSearch, setDomainSearch] = useState("");
   const [domainAvailable, setDomainAvailable] = useState(false);
   const [isCheckingDomain, setIsCheckingDomain] = useState(false);
@@ -105,28 +108,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const oldTheme = localStorage.getItem("arcbank_theme");
-    if (oldTheme && !localStorage.getItem("trustbank_theme")) {
-      localStorage.setItem("trustbank_theme", oldTheme);
-    }
-    const savedTheme = localStorage.getItem("trustbank_theme") as "dark" | "light";
+    const savedTheme = localStorage.getItem("arcbank_theme") as "dark" | "light";
     if (savedTheme) setTheme(savedTheme);
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
-    localStorage.setItem("trustbank_theme", newTheme);
+    localStorage.setItem("arcbank_theme", newTheme);
   };
 
   const addHistoryRecord = (label: string, amount: string, meta: string, status: "Completed" | "Pending" | "Failed", txHash?: string) => {
-    setTxHistory((prev) => {
-      const newHistory = [{ id: Date.now(), label, amount, meta, status, txHash }, ...prev];
-      if (wallet) {
-        localStorage.setItem(`trustbank_history_${wallet}`, JSON.stringify(newHistory.slice(0, 50)));
-      }
-      return newHistory;
-    });
+    setTxHistory((prev) => [
+      { id: Date.now(), label, amount, meta, status, txHash },
+      ...prev
+    ]);
   };
 
   const showMessage = (text: string) => {
@@ -142,8 +138,10 @@ export default function Home() {
     if (eth.providers && eth.providers.length > 0) {
       const rabby = eth.providers.find((p: any) => p.isRabby);
       if (rabby) return rabby;
+      
       const metaMask = eth.providers.find((p: any) => p.isMetaMask && !p.isPhantom);
       if (metaMask) return metaMask;
+      
       return eth.providers[0]; 
     }
     return eth;
@@ -167,7 +165,7 @@ export default function Home() {
     if (!address) return;
     try {
       if (!isSilentRefresh) setBalancesLoading(true);
-      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
       const eurcContract = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, rpcProvider);
 
       const start = Date.now();
@@ -203,9 +201,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!wallet) return;
-
-    const storedStreak = localStorage.getItem(`trustbank_streak_${wallet}`);
-    const storedDate = localStorage.getItem(`trustbank_last_gm_${wallet}`);
+    const storedStreak = localStorage.getItem(`arcbank_streak_${wallet}`);
+    const storedDate = localStorage.getItem(`arcbank_last_gm_${wallet}`);
     const today = new Date().toLocaleDateString();
 
     if (storedDate) {
@@ -229,12 +226,17 @@ export default function Home() {
       setStreak(0);
     }
     
-    const myDomain = localStorage.getItem(`trustbank_domain_name_${wallet}`);
-    if (myDomain) setRegisteredDomain(myDomain);
-
-    const savedHistory = localStorage.getItem(`trustbank_history_${wallet}`);
-    if (savedHistory) setTxHistory(JSON.parse(savedHistory));
-
+    // Auto-migrate old .arc to .arcbank for Arc Pass Display
+    const myDomain = localStorage.getItem(`arcbank_domain_name_${wallet}`);
+    if (myDomain) {
+      if (myDomain.endsWith(".arc")) {
+        const updatedDomain = myDomain.replace(".arc", ".arcbank");
+        localStorage.setItem(`arcbank_domain_name_${wallet}`, updatedDomain);
+        setRegisteredDomain(updatedDomain);
+      } else {
+        setRegisteredDomain(myDomain);
+      }
+    }
   }, [wallet]);
 
   useEffect(() => {
@@ -284,13 +286,9 @@ export default function Home() {
         setSendAddress("");
         setSendMemo("");
         setShowConfirmModal(false);
-        setTxHistory([]);
         showMessage("Wallet Disconnected");
       } else {
-        const newWallet = accounts[0];
-        setWallet(newWallet);
-        const savedHistory = localStorage.getItem(`trustbank_history_${newWallet}`);
-        if (savedHistory) setTxHistory(JSON.parse(savedHistory));
+        setWallet(accounts[0]);
       }
     };
 
@@ -304,13 +302,12 @@ export default function Home() {
     };
   }, []);
 
-  // Fix 1: Pause background refresh during sending
   useEffect(() => {
-    if (!wallet || !isArcTestnet || isSending || showSendModal) return;
+    if (!wallet || !isArcTestnet) return;
     void fetchBalances(wallet);
     const intervalId = setInterval(() => void fetchBalances(wallet, true), 8000);
     return () => clearInterval(intervalId);
-  }, [wallet, isArcTestnet, fetchBalances, isSending, showSendModal]);
+  }, [wallet, isArcTestnet, fetchBalances]);
 
   const switchToArcTestnet = async () => {
     const ethereum = getEthereum();
@@ -353,7 +350,7 @@ export default function Home() {
       if (!accounts?.length) return;
 
       const signer = await provider.getSigner();
-      await signer.signMessage("Sign in to TrustBank");
+      await signer.signMessage("Sign in to ArcBank");
 
       setWallet(accounts[0]);
       const currentChainId = await syncNetwork();
@@ -384,7 +381,6 @@ export default function Home() {
     setSendAddress("");
     setSendMemo("");
     setShowConfirmModal(false);
-    setTxHistory([]);
     showMessage("Wallet Disconnected");
   };
 
@@ -431,6 +427,7 @@ export default function Home() {
     showMessage("Link copied to clipboard! 📋");
   };
 
+  // NEW: Handle initial send click to show Confirmation Menu
   const handleSendClick = () => {
     if (!wallet) return showMessage("Please connect wallet first to send");
     if (!sendAddress || !sendAmount) return showMessage("Please fill required fields");
@@ -440,11 +437,12 @@ export default function Home() {
 
     if (addresses.length === 0) return showMessage("Please enter at least one address");
     
-    setShowConfirmModal(true); 
+    setShowConfirmModal(true); // Open confirmation modal
   };
 
+  // SEND & RESOLVE LOGIC INTEGRATED WITH SMART CONTRACT
   const executeSend = async () => {
-    setShowConfirmModal(false); 
+    setShowConfirmModal(false); // Close confirmation modal
     
     const rawAddresses = isBatchMode ? sendAddress.split(',') : [sendAddress];
     const addresses = rawAddresses.map(a => a.trim()).filter(a => a !== "");
@@ -453,6 +451,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000)); 
     }
 
     try {
@@ -461,7 +460,8 @@ export default function Home() {
       const provider = new ethers.BrowserProvider(ethereum);
       const signer = await provider.getSigner();
 
-      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC, undefined, { staticNetwork: true });
+      // Resolve domains to real addresses
+      const rpcProvider = new ethers.JsonRpcProvider(ARC_RPC);
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, rpcProvider);
       
       const resolvedAddresses: string[] = [];
@@ -469,27 +469,26 @@ export default function Home() {
       for (let target of addresses) {
         const lowerTarget = target.toLowerCase();
         
-        if (lowerTarget.endsWith(".trust")) {
-          showMessage(`Resolving ${target}...`);
-          const nameOnly = lowerTarget.replace(/\.trust$/, "");
+        // SUPPORT BOTH .arcbank AND .arc FOR BACKWARDS COMPATIBILITY
+        if (lowerTarget.endsWith(".arcbank") || lowerTarget.endsWith(".arc")) {
+          showMessage(`Resolving domain ${target}...`);
+          // Strip both extensions to get raw name
+          const nameOnly = lowerTarget.replace(/\.arcbank$|\.arc$/, "");
           
-          try {
-             const resolvedAddress = await ansContract.resolve(nameOnly);
-             if (!resolvedAddress || resolvedAddress === ethers.ZeroAddress) {
-                showMessage(`Domain ${target} is not registered.`);
-                setIsSending(false);
-                return;
-             }
-             resolvedAddresses.push(resolvedAddress);
-          } catch (e) {
-             showMessage(`Domain ${target} could not be resolved.`);
-             setIsSending(false);
-             return;
+          const isAvailable = await ansContract.isAvailable(nameOnly);
+          
+          if (isAvailable) {
+            showMessage(`Domain ${target} is not registered by anyone.`);
+            setIsSending(false);
+            return;
           }
+          
+          const resolvedAddress = await ansContract.resolve(nameOnly);
+          resolvedAddresses.push(resolvedAddress);
         } else if (ethers.isAddress(target)) {
           resolvedAddresses.push(target);
         } else {
-          showMessage(`Invalid address format: ${target}`);
+          showMessage(`Invalid address or domain format: ${target}`);
           setIsSending(false);
           return;
         }
@@ -502,17 +501,9 @@ export default function Home() {
 
       for (let i = 0; i < resolvedAddresses.length; i++) {
         const currentTarget = resolvedAddresses[i];
-        const displayTarget = addresses[i];
+        const displayTarget = addresses[i]; // Show original name or address in UI
 
-        // Fix 2: Add 8-second delay before all subsequent transactions in the batch
-        if (i > 0) {
-          for (let s = 8; s > 0; s--) {
-            showMessage(`Preparing transaction ${i + 1} of ${resolvedAddresses.length}... (${s}s)`);
-            await sleep(1000);
-          }
-        }
-
-        if (isBatchMode) showMessage(`Transaction ${i+1} of ${resolvedAddresses.length}: Please sign in wallet...`);
+        if (isBatchMode) showMessage(`Batching: Sending ${i+1} of ${resolvedAddresses.length}...`);
         else showMessage("Confirm transaction in your wallet...");
 
         try {
@@ -520,10 +511,10 @@ export default function Home() {
 
           if (sendAsset === "USDC") {
             const parsedAmount = ethers.parseUnits(sendAmount, 18);
-            tx = await signer.sendTransaction({
-              to: currentTarget,
+            tx = await signer.sendTransaction({ 
+              to: currentTarget, 
               value: parsedAmount,
-              data: memoHex
+              data: memoHex 
             });
           } else {
             const parsedAmount = ethers.parseUnits(sendAmount, 6);
@@ -537,44 +528,41 @@ export default function Home() {
             });
           }
           
-          showMessage(`Broadcasting ${sendAsset} to network...`);
-          
+          showMessage(`Sending ${sendAsset} to ${displayTarget.slice(0,10)}...`);
           const receipt = await tx.wait();
-
+          const txHash = receipt?.hash || tx?.hash || "";
+          
           addHistoryRecord(
             isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
             `-${sendAmount} ${sendAsset}`, 
             `To ${displayTarget}${sendMemo ? ` (Memo: ${sendMemo})` : ""}`, 
             "Completed", 
-            receipt?.hash || ""
+            txHash
           );
           successCount++;
 
         } catch (txError) {
           console.error("Transaction Error:", txError);
-          addHistoryRecord(
-            isBatchMode ? `Batch Transfer ${sendAsset}` : `Transfer ${sendAsset}`, 
-            `${sendAmount} ${sendAsset}`, 
-            `Failed: ${displayTarget}`, 
-            "Failed"
-          );
+          showMessage(`Failed to send to ${displayTarget}`);
+          addHistoryRecord(`Transfer ${sendAsset}`, `${sendAmount} ${sendAsset}`, `Failed: ${displayTarget}`, "Failed");
         }
       }
       
       if (successCount > 0) {
-        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${resolvedAddresses.length} sent! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
+        showMessage(isBatchMode ? `Batch Complete: ${successCount}/${resolvedAddresses.length} successful! 🎉` : `Successfully sent ${sendAmount} ${sendAsset}!`);
         setShowSendModal(false);
         setSendAddress("");
         setSendAmount("");
         setSendMemo("");
         setIsBatchMode(false);
+        void fetchBalances(wallet);
       } else {
-        showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} succeeded.` : `Transaction failed or rejected.`);
+        showMessage(isBatchMode ? `Batch Failed: 0/${resolvedAddresses.length} transactions succeeded.` : `Transaction failed or rejected.`);
       }
 
     } catch (error) {
       console.error(error);
-      showMessage("Operation failed. Check wallet connection.");
+      showMessage("Operation failed or rejected");
     } finally {
       setIsSending(false);
     }
@@ -586,6 +574,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000));
     }
     if (hasCheckedInToday) return showMessage("Already checked in today! Come back tomorrow.");
 
@@ -600,16 +589,17 @@ export default function Home() {
 
       showMessage("Broadcasting GM Transaction to Arc Network...");
       const receipt = await tx.wait();
-      
+      const txHash = receipt?.hash || tx?.hash || "";
+
       const newStreak = streak + 1;
       const today = new Date().toLocaleDateString();
       setStreak(newStreak);
       setHasCheckedInToday(true);
-      localStorage.setItem(`trustbank_streak_${wallet}`, newStreak.toString());
-      localStorage.setItem(`trustbank_last_gm_${wallet}`, today);
+      localStorage.setItem(`arcbank_streak_${wallet}`, newStreak.toString());
+      localStorage.setItem(`arcbank_last_gm_${wallet}`, today);
 
       showMessage(`GM! Daily check-in successful. You are on Day ${newStreak} 🔥`);
-      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", receipt?.hash || "");
+      addHistoryRecord("Daily GM Check-in", "", `Streak: Day ${newStreak} 🔥`, "Completed", txHash);
       
       void fetchBalances(wallet); 
     } catch (error) {
@@ -619,9 +609,11 @@ export default function Home() {
     }
   };
 
+  // SMART CONTRACT INTEGRATION: Check Domain Availability
   const handleSearchDomain = async () => {
     let cleanSearch = domainSearch.trim().toLowerCase();
-    cleanSearch = cleanSearch.replace(/\.trust$/, "");
+    // Fix: Remove extension if user typed it accidentally
+    cleanSearch = cleanSearch.replace(/\.arcbank$|\.arc$/, "");
     cleanSearch = cleanSearch.replace(/[^a-z0-9-]/g, '');
 
     if (!cleanSearch) return showMessage("Enter a valid domain name");
@@ -667,6 +659,7 @@ export default function Home() {
     document.body.appendChild(script);
   };
 
+  // SMART CONTRACT INTEGRATION: Register Domain
   const executeRegisterDomain = async () => {
     if (!wallet) return showMessage("Connect wallet first");
 
@@ -674,6 +667,7 @@ export default function Home() {
       showMessage("Switching to Arc Testnet...");
       const switched = await switchToArcTestnet();
       if (!switched) return;
+      await new Promise((res) => setTimeout(res, 1000));
     }
 
     try {
@@ -685,7 +679,7 @@ export default function Home() {
       const ansContract = new ethers.Contract(ANS_CONTRACT_ADDRESS, ANS_ABI, signer);
       
       let cleanName = domainSearch.toLowerCase();
-      cleanName = cleanName.replace(/\.trust$/, "");
+      cleanName = cleanName.replace(/\.arcbank$|\.arc$/, "");
       cleanName = cleanName.replace(/[^a-z0-9-]/g, '');
 
       showMessage("Confirm Registration in Wallet...");
@@ -694,14 +688,15 @@ export default function Home() {
 
       showMessage("Registering domain on Arc Network...");
       const receipt = await tx.wait();
+      const txHash = receipt?.hash || tx?.hash || "";
 
-      const newDomain = `${cleanName}.trust`;
+      const newDomain = `${cleanName}.arcbank`;
       setRegisteredDomain(newDomain);
-      setRegistrationHash(receipt?.hash || "");
+      setRegistrationHash(txHash);
       
-      localStorage.setItem(`trustbank_domain_name_${wallet}`, newDomain);
+      localStorage.setItem(`arcbank_domain_name_${wallet}`, newDomain);
 
-      addHistoryRecord("TrustBank Domain Registration", "Free", newDomain, "Completed", receipt?.hash || "");
+      addHistoryRecord("ArcBank Domain Registration", "Free", newDomain, "Completed", txHash);
       
       setShowDomainSuccess(true);
       triggerConfetti();
@@ -721,26 +716,25 @@ export default function Home() {
   };
 
   const shareOnX = () => {
-    const appUrl = window.location.origin;
-    const text = encodeURIComponent(`Verified my domain identity on TrustBank. 🌐\n\nClean Web3 ID with on-chain daily GM streak using TrustBank Pass.\n\nEnterprise-grade stablecoin & identity tools built on @ArcNetwork.\n\n${appUrl}`);
+    const text = encodeURIComponent(`Verified my domain identity.\n\nClean Web3 ID with on-chain daily GM streak using @ArcBank_ Pass.\n\nEnterprise-grade stablecoin & identity tools.\n\n`);
     window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
   };
 
-  const downloadTrustPass = () => {
+  const downloadArcPass = () => {
     showMessage("Generating Image... Please wait ⏳");
-    const element = document.getElementById("trustbank-pass-card");
+    const element = document.getElementById("arc-pass-card");
     if (!element) return;
 
     const runImageGenerator = () => {
       (window as any).domtoimage.toPng(element, { quality: 1, bgcolor: '#050B14', scale: 3 })
         .then((dataUrl: string) => {
           const link = document.createElement('a');
-          link.download = `${registeredDomain || 'trustbank'}-pass.png`;
+          link.download = `${registeredDomain || 'arcbank'}-pass.png`;
           link.href = dataUrl;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          showMessage("TrustBank Pass saved to your device! 📸");
+          showMessage("ArcBank Pass saved to your device! 📸");
         })
         .catch((err: any) => {
           console.error("Image Generation Error:", err);
@@ -807,21 +801,23 @@ export default function Home() {
   return (
     <div className={`min-h-screen relative font-sans flex flex-col selection:bg-cyan-500/30 transition-colors duration-500 overflow-x-hidden ${tc.bgApp}`}>
       
+      {/* TOAST NOTIFICATION */}
       {message && (
         <div className="fixed top-8 left-1/2 z-[100] -translate-x-1/2 rounded-full border border-white/10 bg-[#0A1A3F]/90 backdrop-blur-xl px-4 py-3 sm:px-8 sm:py-4 shadow-[0_0_40px_rgba(6,182,212,0.2)] transition-all duration-500 animate-in fade-in slide-in-from-top-4">
           <div className="font-bold text-xs sm:text-sm tracking-wide text-white whitespace-nowrap">{message}</div>
         </div>
       )}
 
+      {/* DOMAIN SUCCESS MODAL */}
       {showDomainSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-xl">
           <div className="w-full max-w-md rounded-[2.5rem] border border-cyan-500/30 bg-gradient-to-b from-[#0A1A3F] to-[#020617] p-8 shadow-[0_0_80px_rgba(6,182,212,0.2)] flex flex-col items-center text-center relative overflow-hidden">
             <button onClick={() => setShowDomainSuccess(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-full p-2.5 z-10">✕</button>
             <div className="w-24 h-24 bg-[#050B14] border border-cyan-500/20 rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)] mb-6 overflow-hidden p-2 transform transition-transform hover:scale-105">
-              <img src="/trustbank-logo.jpg" alt="TrustBank Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
+              <img src="/arcbank-logo.jpg" alt="ARC Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-2xl" />
             </div>
             <h2 className="text-3xl font-black text-white tracking-tight mb-2">Congratulations!</h2>
-            <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered, <span className="text-cyan-400 font-bold">verified on Arc Testnet</span>!</p>
+            <p className="text-sm font-medium text-gray-300 mb-6">Your domain has been successfully registered on <span className="text-cyan-400 font-bold">Arc Testnet</span>!</p>
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/50 bg-cyan-500/10 px-6 py-2 mb-8">
               <span className="text-cyan-400">⚡</span>
               <span className="text-sm font-black text-cyan-400 tracking-widest uppercase">Lifetime Ownership</span>
@@ -838,6 +834,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* REQUEST PAYMENT MODAL */}
       {showRequestModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
@@ -881,6 +878,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* NEW: PAYMENT CONFIRMATION MODAL */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
           <div className={`w-full max-w-sm rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 shadow-[0_0_50px_rgba(6,182,212,0.15)] ${tc.modalBg}`}>
@@ -921,6 +919,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* SEND MODAL WITH DOMAIN SUPPORT */}
       {showSendModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-[2rem] border p-6 sm:p-8 backdrop-blur-2xl transition-colors duration-300 ${tc.modalBg}`}>
@@ -929,6 +928,7 @@ export default function Home() {
               <button onClick={() => setShowSendModal(false)} className="text-gray-400 hover:text-cyan-500 transition rounded-full p-2.5">✕</button>
             </div>
 
+            {/* BATCH TOGGLE */}
             <div className="flex items-center justify-between bg-black/20 p-3 rounded-2xl mb-6 border border-white/5">
               <div className="flex flex-col">
                 <span className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-800'}`}>Batch Transfer</span>
@@ -946,9 +946,9 @@ export default function Home() {
                   {isBatchMode && <span className="text-[9px] text-orange-400">Separate with comma (,)</span>}
                 </label>
                 {isBatchMode ? (
-                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., jubayir.trust, 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
+                  <textarea value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="0x1..., jubayir.arcbank, 0x3..." className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm resize-none h-24 ${tc.inputBg}`} />
                 ) : (
-                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="e.g., 0x... or jubayir.trust" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
+                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} placeholder="e.g., 0x... or jubayir.arcbank" className={`w-full rounded-2xl border px-5 py-4 focus:outline-none transition font-mono text-sm ${tc.inputBg}`} />
                 )}
               </div>
               <div>
@@ -982,7 +982,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* DRAWER / SIDEBAR */}
+      {/* DRAWER / SIDEBAR (NEW UI) */}
       <div className={`fixed inset-0 z-[100] transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
         <div className={`absolute top-0 right-0 w-72 sm:w-80 h-full border-l p-6 flex flex-col gap-2 transform transition-transform duration-300 shadow-2xl ${tc.drawerBg} ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -999,10 +999,10 @@ export default function Home() {
             <span className="text-xl">🔥</span>
           </button>
           <button onClick={() => handleTabSwitch("domains")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "domains" ? tc.sidebarActive : tc.sidebarInactive}`}>
-            TrustBank Domains
+            ArcBank Domains
           </button>
-          <button onClick={() => handleTabSwitch("trustpass")} className={`w-full rounded-2xl px-6 py-4 text-left flex justify-between items-center font-black tracking-wide transition-all border ${selectedTab === "trustpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
-            <span>TrustBank Pass</span>
+          <button onClick={() => handleTabSwitch("arcpass")} className={`w-full rounded-2xl px-6 py-4 text-left flex justify-between items-center font-black tracking-wide transition-all border ${selectedTab === "arcpass" ? tc.sidebarActive : tc.sidebarInactive}`}>
+            <span>ArcBank Pass</span>
             <span className={`text-[10px] px-2 py-1 rounded-lg ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>NEW</span>
           </button>
           <button onClick={() => handleTabSwitch("history")} className={`w-full rounded-2xl px-6 py-4 text-left font-black tracking-wide transition-all border ${selectedTab === "history" ? tc.sidebarActive : tc.sidebarInactive}`}>
@@ -1023,7 +1023,7 @@ export default function Home() {
       {/* TOP NAVIGATION */}
       <nav className={`flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-10 md:py-6 sticky top-0 z-40 backdrop-blur-xl border-b transition-colors duration-500 ${tc.navBorder}`}>
         <div className="flex items-center gap-3 md:gap-5">
-          <h1 className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md ${tc.textMain}`}>TrustBank</h1>
+          <h1 className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md ${tc.textMain}`}>ArcBank</h1>
           
           {wallet && (
             <div className={`hidden sm:flex items-center gap-2 rounded-full border px-3 py-1.5 backdrop-blur-md ${theme === 'dark' ? 'border-white/5 bg-black/30' : 'border-slate-200 bg-white shadow-sm'}`}>
@@ -1045,6 +1045,7 @@ export default function Home() {
             <button type="button" onClick={connectWallet} className={`rounded-full px-4 py-2 text-xs sm:text-sm md:text-base transition-all hover:scale-105 active:scale-95 font-black shadow-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-slate-900 text-white'}`}>Connect Wallet</button>
           )}
 
+          {/* HAMBURGER MENU BUTTON */}
           <button onClick={() => setIsSidebarOpen(true)} className={`flex items-center justify-center w-10 h-10 rounded-full border transition-all active:scale-90 ${theme === 'dark' ? 'border-white/20 bg-white/5 hover:bg-white/10 text-white' : 'border-slate-300 bg-white shadow-sm hover:bg-slate-50 text-slate-900'}`}>
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
@@ -1057,7 +1058,7 @@ export default function Home() {
           
           <div className="text-center space-y-3 md:space-y-4">
             <h1 className={`text-4xl sm:text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br pb-2 drop-shadow-sm ${tc.textWelcome}`}>
-              Welcome to TrustBank
+              Welcome to ArcBank
             </h1>
             <p className={`text-sm md:text-lg font-medium tracking-wide max-w-xl mx-auto px-2 ${tc.textDesc}`}>
               Enterprise-grade stablecoin management built on the lightning-fast Arc L1 Network.
@@ -1067,6 +1068,7 @@ export default function Home() {
           <div className="w-full">
             {selectedTab === "overview" && (
               <div className="space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500">
+                {/* 2 FULL WIDTH CARDS FOR BALANCES */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8">
                   <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 relative overflow-hidden group transition-all duration-500 md:hover:-translate-y-1 ${tc.cardBg}`}>
                     <div className="absolute -top-6 -right-6 md:-top-10 md:-right-10 p-6 md:p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all duration-700 text-7xl md:text-9xl group-hover:scale-110">💵</div>
@@ -1106,6 +1108,7 @@ export default function Home() {
               </div>
             )}
 
+            {/* DAILY GM TAB */}
             {selectedTab === "dailygm" && (
               <div className="w-full flex items-center justify-center animate-in fade-in zoom-in-95 duration-500 mt-4 md:mt-10">
                 <div className={`w-full max-w-2xl rounded-3xl md:rounded-[3rem] border p-8 md:p-14 shadow-2xl flex flex-col items-center text-center relative overflow-hidden group gap-6 md:gap-8 ${theme === 'dark' ? 'border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-black backdrop-blur-2xl text-white' : 'border-orange-200 bg-gradient-to-br from-orange-50 to-white text-slate-900'}`}>
@@ -1140,8 +1143,8 @@ export default function Home() {
             {selectedTab === "domains" && (
               <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/60 to-black backdrop-blur-3xl shadow-2xl' : 'border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white shadow-xl'}`}>
                 <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-5' : 'opacity-[0.03]'}`}>🌐</div>
-                <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>TrustBank Web3 Identity</h2>
-                <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.trust</span> username on the blockchain and establish your lifetime identity.</p>
+                <h2 className={`text-2xl md:text-4xl font-black tracking-tight mb-2 md:mb-3 ${tc.textMain}`}>ArcBank Web3 Identity</h2>
+                <p className={`text-xs md:text-base font-medium mb-6 md:mb-10 max-w-xl ${tc.textMuted}`}>Register your unique <span className={theme === 'dark' ? 'text-cyan-400 font-bold' : 'text-cyan-600 font-bold'}>.arcbank</span> username on the blockchain and establish your lifetime identity.</p>
                 
                 <div className={`flex flex-col sm:flex-row items-center gap-3 md:gap-4 w-full bg-black border rounded-3xl sm:rounded-full p-2 pl-4 md:pl-6 transition-shadow ${theme === 'dark' ? 'border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.1)] hover:shadow-[0_0_40px_rgba(6,182,212,0.2)]' : 'border-cyan-300 shadow-md hover:shadow-lg'}`}>
                   <span className={`hidden sm:inline-block text-xl font-bold ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-600'}`}>∞</span>
@@ -1150,7 +1153,7 @@ export default function Home() {
                     value={domainSearch}
                     onChange={(e) => { 
                       let val = e.target.value.toLowerCase();
-                      val = val.replace(/\.trust$/, "");
+                      val = val.replace(/\.arcbank$|\.arc$/, "");
                       val = val.replace(/[^a-z0-9-]/g, '');
                       setDomainSearch(val); 
                       setDomainAvailable(false); 
@@ -1159,7 +1162,7 @@ export default function Home() {
                     className={`flex-1 w-full bg-transparent border-none text-lg md:text-xl font-bold focus:outline-none text-center sm:text-left py-2 sm:py-0 ${theme === 'dark' ? 'text-white placeholder-zinc-700' : 'text-slate-900 placeholder-slate-400'}`}
                   />
                   <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.trust</div>
+                    <div className={`font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full border tracking-widest text-sm md:text-base ${theme === 'dark' ? 'bg-white/10 text-cyan-400 border-cyan-500/20' : 'bg-cyan-100 text-cyan-700 border-cyan-200'}`}>.arcbank</div>
                     <button onClick={handleSearchDomain} disabled={isCheckingDomain} className="bg-cyan-500 hover:bg-cyan-400 text-white font-black px-6 py-2 md:px-8 md:py-4 rounded-full transition-all active:scale-95 text-sm md:text-lg w-full sm:w-auto shadow-md disabled:opacity-50">
                       {isCheckingDomain ? "Checking..." : "Search →"}
                     </button>
@@ -1170,9 +1173,9 @@ export default function Home() {
                   <div className={`mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-between p-5 md:p-6 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-500 ${theme === 'dark' ? 'bg-cyan-950/30 border border-cyan-500/30' : 'bg-cyan-50 border border-cyan-200'}`}>
                     <div className="flex items-center gap-4 md:gap-5">
                       <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center p-1.5 ${theme === 'dark' ? 'bg-[#050B14] border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : 'bg-white border border-cyan-200 shadow-sm'}`}>
-                        <img src="/trustbank-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
+                        <img src="/arcbank-logo.jpg" alt="A" crossOrigin="anonymous" className="w-full h-full object-contain rounded-lg md:rounded-xl" />
                       </div>
-                      <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.trust</div>
+                      <div className={`text-xl md:text-2xl font-black ${tc.textMain}`}>{domainSearch}.arcbank</div>
                     </div>
                     <div className="flex items-center gap-4 md:gap-6 mt-4 sm:mt-0 w-full sm:w-auto justify-between sm:justify-end">
                       <div className={`text-sm md:text-base font-bold ${theme === 'dark' ? 'text-gray-300' : 'text-slate-600'}`}>Free (Gas Only)</div>
@@ -1189,15 +1192,15 @@ export default function Home() {
               </div>
             )}
 
-            {selectedTab === "trustpass" && (
+            {selectedTab === "arcpass" && (
               <div className={`rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 flex flex-col items-center justify-center min-h-[50vh] md:min-h-[60vh] relative overflow-hidden animate-in fade-in zoom-in-95 duration-500 ${theme === 'dark' ? 'border border-white/10 bg-white/[0.02] backdrop-blur-3xl shadow-2xl' : 'border border-slate-200 bg-white shadow-xl'}`}>
                 {theme === 'dark' && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 md:w-96 md:h-96 bg-cyan-500/20 rounded-full blur-[80px] md:blur-[100px] pointer-events-none"></div>}
 
                 {!registeredDomain ? (
                   <div className="text-center z-10 max-w-lg px-4">
                     <div className="text-5xl md:text-7xl mb-4 md:mb-6 animate-pulse">🪪</div>
-                    <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your TrustBank Pass</h2>
-                    <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register a .trust domain to generate your exclusive Web3 Holographic Identity Card.</p>
+                    <h2 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 ${tc.textMain}`}>Unlock Your ArcBank Pass</h2>
+                    <p className={`text-sm md:text-base mb-6 md:mb-8 ${tc.textMuted}`}>You need to register an .arcbank domain to generate your exclusive Web3 Holographic Identity Card.</p>
                     <button onClick={() => handleTabSwitch("domains")} className="bg-cyan-500 hover:bg-cyan-600 text-white font-black px-6 py-3 md:px-8 md:py-4 rounded-full transition-all active:scale-95 shadow-lg text-sm md:text-base">
                       Register Domain Now
                     </button>
@@ -1209,16 +1212,16 @@ export default function Home() {
                       <p className={`text-xs md:text-sm font-bold mt-1 md:mt-2 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Verified on Arc Blockchain</p>
                     </div>
 
-                    <div id="trustbank-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
+                    <div id="arc-pass-card" className="w-[90%] sm:w-full max-w-[450px] aspect-[1.58/1] rounded-2xl md:rounded-[2rem] border border-white/20 bg-gradient-to-br from-[#0A1A3F] to-cyan-900/40 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] md:shadow-[0_20px_50px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.1)] relative overflow-hidden flex flex-col justify-between p-5 md:p-8 transform transition-transform md:hover:scale-105 md:hover:rotate-1 duration-500 group">
                       
                       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
 
                       <div className="flex justify-between items-start w-full relative z-10">
                         <div className="flex items-center gap-2 md:gap-3">
                           <div className="w-8 h-8 md:w-10 md:h-10 bg-[#050B14] rounded-lg md:rounded-xl overflow-hidden border border-cyan-500/30 flex items-center justify-center p-1 md:p-1.5 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                            <img src="/trustbank-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
+                            <img src="/arcbank-logo.jpg" alt="Logo" crossOrigin="anonymous" className="w-full h-full object-contain rounded-md" />
                           </div>
-                          <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">TRUSTBANK PASS</div>
+                          <div className="font-black text-base md:text-xl text-white tracking-widest uppercase">ARCBANK PASS</div>
                         </div>
                         <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[8px] md:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 md:gap-1.5">
                           <div className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
@@ -1251,7 +1254,7 @@ export default function Home() {
                     </div>
                     
                     <div className="mt-8 md:mt-10 flex flex-wrap justify-center gap-3 md:gap-4">
-                      <button onClick={downloadTrustPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
+                      <button onClick={downloadArcPass} className={`flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-full transition-all font-bold text-xs md:text-sm border active:scale-95 shadow-md ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20 text-white border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'}`}>
                         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         Save Image
                       </button>
@@ -1322,18 +1325,19 @@ export default function Home() {
 
             {selectedTab === "learn" && (
               <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+                {/* NEW ARCBANK SECTION */}
                 <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden mb-6 md:mb-8 ${theme === 'dark' ? 'border-cyan-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-cyan-200 bg-gradient-to-br from-cyan-50 to-white'}`}>
                   <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>🏦</div>
-                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is TrustBank?</h2>
+                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is ArcBank?</h2>
                   <p className={`text-sm md:text-xl font-medium leading-relaxed max-w-3xl mb-6 md:mb-10 ${tc.textDesc}`}>
-                    TrustBank is an advanced Web3 Stablecoin Management and Identity Protocol built on the Arc Network. We make blockchain payments as simple as traditional banking by replacing complex addresses with human-readable <strong>.trust</strong> domains and offering enterprise-grade batch payment tools.
+                    ArcBank is an advanced Web3 Stablecoin Management and Identity Protocol. We make blockchain payments as simple as traditional banking by replacing complex addresses with human-readable <strong>.arcbank</strong> domains and offering enterprise-grade batch payment tools.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mt-8">
                     <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
                       <div className="text-2xl mb-2">🌐</div>
-                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>TrustBank Name Service</h4>
-                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Register a permanent .trust domain to replace your long 0x wallet address.</p>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>ArcBank Name Service</h4>
+                      <p className={`text-xs md:text-sm ${tc.textMuted}`}>Register a permanent .arcbank domain to replace your long 0x wallet address.</p>
                     </div>
                     <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
                       <div className="text-2xl mb-2">💸</div>
@@ -1347,21 +1351,40 @@ export default function Home() {
                     </div>
                     <div className={`p-5 md:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-slate-200'}`}>
                       <div className="text-2xl mb-2">🪪</div>
-                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>TrustBank Pass & Daily GM</h4>
+                      <h4 className={`text-lg font-black mb-2 ${tc.textMain}`}>ArcBank Pass & Daily GM</h4>
                       <p className={`text-xs md:text-sm ${tc.textMuted}`}>Build an on-chain streak and unlock your verifiable, holographic Web3 Identity Card.</p>
                     </div>
                   </div>
                 </div>
 
+                {/* ORIGINAL ARC NETWORK SECTION */}
                 <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-12 shadow-2xl relative overflow-hidden ${theme === 'dark' ? 'border-blue-500/20 bg-gradient-to-br from-[#0A1A3F]/80 to-black backdrop-blur-3xl' : 'border-blue-200 bg-gradient-to-br from-blue-50 to-white'}`}>
                   <div className={`absolute top-0 right-0 p-6 md:p-10 text-7xl md:text-9xl ${theme === 'dark' ? 'opacity-10' : 'opacity-[0.03]'}`}>📖</div>
-                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>Built on Arc Network</h2>
+                  <h2 className={`text-3xl md:text-5xl font-black mb-4 md:mb-6 tracking-tighter drop-shadow-sm ${tc.textMain}`}>What is Arc Network?</h2>
                   <p className={`text-sm md:text-xl font-medium leading-relaxed max-w-3xl mb-6 md:mb-10 ${tc.textDesc}`}>
-                    TrustBank relies on Arc, an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
+                    Arc is an enterprise-grade L1 blockchain designed specifically for stablecoin management, rapid payments, and decentralized finance. It brings together fiat-backed assets and powerful infrastructure to make global money movement seamless.
                   </p>
                   <button onClick={openArcWebsite} className={`rounded-full px-6 py-3 md:px-10 md:py-4 font-black transition-all active:scale-95 flex items-center gap-2 md:gap-3 text-sm md:text-base w-full sm:w-auto justify-center shadow-lg ${theme === 'dark' ? 'bg-white text-black hover:bg-gray-200' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                     Visit Arc Official Website <span className="text-xl md:text-2xl">↗</span>
                   </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div className="text-5xl md:text-6xl mb-4 md:mb-8">🌐</div>
+                    <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Circle Integration</h3>
+                    <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
+                      Arc natively supports Circle's major stablecoins like <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC</strong> (US Dollar) and <strong className={theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}>EURC</strong> (Euro). These assets are directly issued on the network ensuring deep liquidity and 1:1 fiat backing.
+                    </p>
+                  </div>
+
+                  <div className={`rounded-3xl md:rounded-[2.5rem] border p-6 md:p-10 shadow-lg transition-all md:hover:-translate-y-1 ${theme === 'dark' ? 'bg-white/[0.02] border-white/10 hover:border-white/20 backdrop-blur-2xl' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div className="text-5xl md:text-6xl mb-4 md:mb-8">⚡</div>
+                    <h3 className={`text-2xl md:text-3xl font-black mb-3 md:mb-4 tracking-tight ${tc.textMain}`}>Native Gas Asset</h3>
+                    <p className={`text-sm md:text-lg font-medium leading-relaxed ${tc.textMuted}`}>
+                      Unlike traditional networks that use volatile assets (like ETH or BNB) for transaction fees, Arc uses <strong className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>USDC as its native gas asset</strong>. This guarantees predictable, low-cost operations for businesses.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -1373,14 +1396,17 @@ export default function Home() {
       <footer className={`mt-auto border-t py-8 md:py-12 backdrop-blur-2xl transition-colors duration-500 ${tc.footerBg}`}>
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-6 md:gap-8 px-6 md:flex-row">
           <div className={`text-xs md:text-sm font-bold tracking-widest uppercase text-center md:text-left ${tc.textMuted}`}>
-            © 2026 TRUSTBANK · BUILT ON ARC NETWORK
+            © 2026 ARC BANK · BUILD ON ARC NETWORK
           </div>
           
           <div className="flex flex-col items-center gap-3 md:gap-4 md:items-end">
             <div className={`text-[10px] md:text-xs font-black uppercase tracking-widest ${tc.textMuted}`}>
-              BUILT BY <span className={tc.textMain}>JUBAYIR69</span>
+              BUILD BY <span className={tc.textMain}>JUBAYIR69</span>
             </div>
             <div className="flex gap-3 md:gap-4">
+              <a href="https://x.com/ArcBank_" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.008 5.337H5.051z" /></svg>
+              </a>
               <a href="https://discordapp.com/users/1209377505442537484" target="_blank" rel="noopener noreferrer" className={`transition-all p-2.5 md:p-3 border rounded-full md:hover:scale-110 flex items-center justify-center ${tc.footerIcon}`}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z"/></svg>
               </a>
